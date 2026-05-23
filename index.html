@@ -948,6 +948,49 @@ body{font-family:var(--font);color:var(--text);overflow:hidden;}
       </div>
     </div>
 
+    <!-- Notifications permission popup (shown after signup) -->
+    <div id="notifPermissionOverlay" style="display:none;position:absolute;inset:0;background:rgba(0,0,0,.7);z-index:500;display:none;align-items:flex-end;">
+      <div style="background:var(--s1);border-radius:28px 28px 0 0;width:100%;padding:24px 20px 48px;animation:slideUp .3s cubic-bezier(.34,1.3,.64,1);">
+        <div style="text-align:center;margin-bottom:20px;">
+          <div style="font-size:40px;margin-bottom:12px;">🔔</div>
+          <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--text);margin-bottom:8px;">Stay on your streak</div>
+          <div style="font-size:13px;color:var(--muted);line-height:1.7;">Enable notifications to get:</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:24px;">
+          <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--s2);border-radius:12px;">
+            <div style="font-size:20px;">📸</div>
+            <div>
+              <div style="font-size:13px;font-weight:600;color:var(--text);">Daily check-in reminder</div>
+              <div style="font-size:11px;color:var(--muted);">A nudge to take your daily photo</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--s2);border-radius:12px;">
+            <div style="font-size:20px;">🔥</div>
+            <div>
+              <div style="font-size:13px;font-weight:600;color:var(--text);">Streak alerts</div>
+              <div style="font-size:11px;color:var(--muted);">Warning before you lose your streak</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--s2);border-radius:12px;">
+            <div style="font-size:20px;">💪</div>
+            <div>
+              <div style="font-size:13px;font-weight:600;color:var(--text);">Friend activity</div>
+              <div style="font-size:11px;color:var(--muted);">When friends react or comment on your posts</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--s2);border-radius:12px;">
+            <div style="font-size:20px;">🏆</div>
+            <div>
+              <div style="font-size:13px;font-weight:600;color:var(--text);">Compete updates</div>
+              <div style="font-size:11px;color:var(--muted);">When your challenger makes progress</div>
+            </div>
+          </div>
+        </div>
+        <button onclick="requestNotifications()" style="width:100%;padding:15px;border-radius:14px;background:var(--text);color:var(--bg);font-family:'Syne',sans-serif;font-size:15px;font-weight:700;border:none;cursor:pointer;margin-bottom:10px;">Allow Notifications</button>
+        <button onclick="dismissNotifPrompt()" style="width:100%;padding:14px;border-radius:14px;background:transparent;color:var(--muted);font-family:'Syne',sans-serif;font-size:14px;font-weight:600;border:none;cursor:pointer;">Not now</button>
+      </div>
+    </div>
+
     <!-- Step 11: Privacy -->
     <div class="ob-step" id="ob11">
       <div class="ob-step-num">Step 10 of 10</div>
@@ -1507,7 +1550,7 @@ body{font-family:var(--font);color:var(--text);overflow:hidden;}
 
   <!-- Day detail modal -->
   <div class="modal-bg" id="dayModal" onclick="closeModalBg(event,'dayModal')">
-    <div class="modal-sheet" style="max-height:90%;overflow-y:auto;">
+    <div class="modal-sheet" id="dayModalSheet" style="max-height:90%;overflow-y:auto;transition:transform .3s ease;">
       <div class="modal-handle"></div>
 
       <!-- Photos -->
@@ -2329,6 +2372,18 @@ function setUnit(type, unit, btn) {
     if (tSuffix) tSuffix.textContent = unit;
     const tInput = document.getElementById('obTarget');
     if (tInput) tInput.placeholder = unit === 'lbs' ? 'e.g. 160' : 'e.g. 75';
+    // Sync with settings display
+    const unitDisplay = document.getElementById('unitDisplay');
+    if (unitDisplay) unitDisplay.innerHTML = unit + ' <span class="chevron">›</span>';
+    // Sync weight unit modal checkmarks
+    const kgCheck = document.getElementById('unitKgCheck');
+    const lbsCheck = document.getElementById('unitLbsCheck');
+    const kgBtn = document.getElementById('unitKgBtn');
+    const lbsBtn = document.getElementById('unitLbsBtn');
+    if (kgCheck) kgCheck.style.display = unit === 'kg' ? 'inline' : 'none';
+    if (lbsCheck) lbsCheck.style.display = unit === 'lbs' ? 'inline' : 'none';
+    if (kgBtn) kgBtn.classList.toggle('selected', unit === 'kg');
+    if (lbsBtn) lbsBtn.classList.toggle('selected', unit === 'lbs');
   }
 }
 function finishOnboarding() {
@@ -2387,6 +2442,13 @@ function finishOnboarding() {
   state.trialStartDate = new Date();
   checkTrialStatus();
   showToast('Welcome, ' + state.obData.name + '! 7-day free trial started 🎉');
+  // Show notifications prompt after short delay
+  setTimeout(() => {
+    try {
+      const asked = localStorage.getItem('btm_notif_asked');
+      if (!asked) showNotifPermission();
+    } catch(e) { showNotifPermission(); }
+  }, 1500);
   // Save profile to Firestore
   if (window.firebaseDb && window.currentFirebaseUser) {
     try {
@@ -3514,18 +3576,67 @@ function confirmBlurPosition() {
   }
 }
 
+function initSwipeToClose(sheetId, modalId) {
+  const sheet = document.getElementById(sheetId);
+  if (!sheet || sheet._swipeInit) return;
+  sheet._swipeInit = true;
+  let startY = 0, startScrollTop = 0, isDragging = false;
+
+  sheet.addEventListener('touchstart', e => {
+    startY = e.touches[0].clientY;
+    startScrollTop = sheet.scrollTop;
+    isDragging = true;
+    sheet.style.transition = 'none';
+  }, { passive: true });
+
+  sheet.addEventListener('touchmove', e => {
+    if (!isDragging) return;
+    const dy = e.touches[0].clientY - startY;
+    // Only swipe down if at top of scroll
+    if (dy > 0 && sheet.scrollTop <= 0) {
+      sheet.style.transform = `translateY(${dy}px)`;
+    }
+  }, { passive: true });
+
+  sheet.addEventListener('touchend', e => {
+    isDragging = false;
+    sheet.style.transition = 'transform .3s ease';
+    const dy = e.changedTouches[0].clientY - startY;
+    if (dy > 100) {
+      // Swipe far enough — close
+      sheet.style.transform = 'translateY(100%)';
+      setTimeout(() => {
+        closeModal(modalId);
+        sheet.style.transform = '';
+      }, 280);
+    } else {
+      sheet.style.transform = '';
+    }
+  }, { passive: true });
+}
+
 function openDayModal(idx) {
   const c = state.checkins[idx];
   const frontEl = document.getElementById('modalPhotoFront');
 
+  // Use Firebase Storage URLs if local photos not available
+  const frontSrc = c.photoFront || c.photoFrontUrl || c.photo || c.photoBackUrl || '';
+  const backSrc = c.photo || c.photoBackUrl || c.photoFront || c.photoFrontUrl || '';
+
   if (c.hideFace && !state.showFaceOnCalendar) {
-    // Owner chose to view blurred on their own calendar
-    blurFaceInPhoto(c.photo || '', blurred => { document.getElementById('modalPhoto').src = blurred; });
-    if (frontEl) blurFaceInPhoto(c.photoFront || c.photo || '', blurred => { frontEl.src = blurred; });
+    blurFaceInPhoto(backSrc, blurred => { document.getElementById('modalPhoto').src = blurred; });
+    if (frontEl) blurFaceInPhoto(frontSrc, blurred => { frontEl.src = blurred; });
   } else {
-    // Show full unblurred to owner
-    document.getElementById('modalPhoto').src = c.photo || '';
-    if (frontEl) frontEl.src = c.photoFront || c.photo || '';
+    document.getElementById('modalPhoto').src = backSrc;
+    if (frontEl) frontEl.src = frontSrc;
+  }
+
+  // Show placeholder if no photo available
+  if (!frontSrc) {
+    if (frontEl) { frontEl.style.background = 'var(--s3)'; frontEl.alt = 'No photo saved'; }
+  }
+  if (!backSrc) {
+    document.getElementById('modalPhoto').style.background = 'var(--s3)';
   }
 
   // Add toggle in modal to show/hide own face
@@ -3578,6 +3689,7 @@ function openDayModal(idx) {
   if (modeEl) { modeEl.textContent = (modeLabels[c.mode]||'🟢 Bulk') + (c.hideFace ? '  ·  Face hidden' : ''); modeEl.style.color = modeColors[c.mode]||'#2A7A4A'; }
   if (captionEl) { captionEl.textContent = c.caption || ''; captionEl.style.display = c.caption ? 'block' : 'none'; }
   openModal('dayModal');
+  setTimeout(() => initSwipeToClose('dayModalSheet', 'dayModal'), 100);
 }
 
 // ── FEEDBACK SYSTEM ──
@@ -4201,6 +4313,33 @@ YOUR COACHING STYLE — ONE QUESTION AT A TIME:
 renderCompeteDays();
 // Dev reset removed — using real data
 
+// Restore dark mode preference
+try {
+  const savedDark = localStorage.getItem('btm_dark_mode');
+  if (savedDark === '1') {
+    const app = document.getElementById('app');
+    if (app) {
+      app.classList.add('dark-mode-on');
+      const btn = document.getElementById('themeToggle');
+      if (btn) btn.classList.add('on');
+      // Apply dark colors
+      app.style.setProperty('--bg','#0e0e0e');
+      app.style.setProperty('--s1','#1c1c1c');
+      app.style.setProperty('--s2','#242424');
+      app.style.setProperty('--s3','#2e2e2e');
+      app.style.setProperty('--border','rgba(255,255,255,0.1)');
+      app.style.setProperty('--border2','rgba(255,255,255,0.18)');
+      app.style.setProperty('--accent','#ffffff');
+      app.style.setProperty('--text','#ffffff');
+      app.style.setProperty('--muted','#999');
+      app.style.setProperty('--muted2','#666');
+      document.body.style.background = '#000';
+      const nav = document.getElementById('mainNav');
+      if (nav) { nav.style.background = '#0e0e0e'; nav.style.borderTop = '.5px solid rgba(255,255,255,0.08)'; }
+    }
+  }
+} catch(e) {}
+
 // Load saved API key from localStorage
 try {
   const savedKey = localStorage.getItem('btm_api_key');
@@ -4310,6 +4449,30 @@ async function userExistsInFirebase(uid) {
     const snap = await window.fsGetDoc(window.fsDoc(window.firebaseDb, 'users', uid));
     return snap.exists();
   } catch(e) { return false; }
+}
+
+function showNotifPermission() {
+  const overlay = document.getElementById('notifPermissionOverlay');
+  if (overlay) { overlay.style.display = 'flex'; }
+}
+
+function requestNotifications() {
+  if ('Notification' in window) {
+    Notification.requestPermission().then(permission => {
+      console.log('Notification permission:', permission);
+      if (permission === 'granted') {
+        showToast('Notifications enabled! 🔔');
+        try { localStorage.setItem('btm_notif', '1'); } catch(e) {}
+      }
+    });
+  }
+  dismissNotifPrompt();
+}
+
+function dismissNotifPrompt() {
+  const overlay = document.getElementById('notifPermissionOverlay');
+  if (overlay) overlay.style.display = 'none';
+  try { localStorage.setItem('btm_notif_asked', '1'); } catch(e) {}
 }
 
 function showGoogleSignUp() {

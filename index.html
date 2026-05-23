@@ -41,29 +41,37 @@
   window.firebaseDb = db;
   window.firebaseAuth = auth;
   window.firebaseProvider = provider;
-  // Use redirect on mobile (GitHub Pages), popup on localhost
-  const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-  window.firebaseSignIn = () => isLocalhost ? signInWithPopup(auth, provider) : signInWithRedirect(auth, provider);
-  
+  // Try popup first, fall back to redirect if blocked
+  window.firebaseSignIn = async () => {
+    try {
+      // Try popup first
+      const result = await signInWithPopup(auth, provider);
+      return result;
+    } catch(err) {
+      if (err.code === 'auth/popup-blocked' || err.code === 'auth/cancelled-popup-request') {
+        // Fall back to redirect
+        console.log('Popup blocked, using redirect...');
+        await signInWithRedirect(auth, provider);
+        return null;
+      }
+      throw err;
+    }
+  };
+
   // Handle redirect result when returning from Google sign-in
-  // This fires immediately on page load after Google redirects back
   getRedirectResult(auth).then(result => {
     if (result && result.user) {
       console.log('Redirect sign-in successful:', result.user.displayName);
       window.currentFirebaseUser = result.user;
       window.pendingRedirectUser = result.user;
-      // Hide splash immediately and load user
       const splash = document.getElementById('splash');
       if (splash) splash.style.display = 'none';
       if (window.loadUserFromFirebase) {
         window.loadUserFromFirebase(result.user);
       }
-    } else {
-      console.log('No redirect result — normal load');
     }
   }).catch(err => {
     console.error('Redirect result error:', err.code, err.message);
-    showToast && showToast('Sign-in failed: ' + err.message);
   });
   window.fsCollection = collection;
   window.fsAddDoc = addDoc;

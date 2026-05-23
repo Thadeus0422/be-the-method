@@ -46,16 +46,24 @@
   window.firebaseSignIn = () => isLocalhost ? signInWithPopup(auth, provider) : signInWithRedirect(auth, provider);
   
   // Handle redirect result when returning from Google sign-in
+  // This fires immediately on page load after Google redirects back
   getRedirectResult(auth).then(result => {
     if (result && result.user) {
       console.log('Redirect sign-in successful:', result.user.displayName);
       window.currentFirebaseUser = result.user;
+      window.pendingRedirectUser = result.user;
+      // Hide splash immediately and load user
+      const splash = document.getElementById('splash');
+      if (splash) splash.style.display = 'none';
       if (window.loadUserFromFirebase) {
         window.loadUserFromFirebase(result.user);
       }
+    } else {
+      console.log('No redirect result — normal load');
     }
   }).catch(err => {
-    console.error('Redirect result error:', err);
+    console.error('Redirect result error:', err.code, err.message);
+    showToast && showToast('Sign-in failed: ' + err.message);
   });
   window.fsCollection = collection;
   window.fsAddDoc = addDoc;
@@ -94,11 +102,14 @@
   onAuthStateChanged(auth, async (user) => {
     if (user) {
       window.currentFirebaseUser = user;
-      console.log('Existing session found for:', user.displayName);
-      // Only auto-login if still on onboarding screen (not already past it)
+      console.log('Auth state changed — user:', user.displayName);
+      // Skip if redirect result already handled it
+      if (window.pendingRedirectUser) {
+        window.pendingRedirectUser = null;
+        return;
+      }
       const onboarding = document.getElementById('onboarding');
       if (onboarding && !onboarding.classList.contains('done')) {
-        // Small delay to let app fully initialize
         setTimeout(async () => {
           try {
             if (window.firebaseDb && window.fsDoc && window.fsGetDoc) {
@@ -106,13 +117,15 @@
               const userSnap = await window.fsGetDoc(userDocRef);
               if (userSnap.exists()) {
                 console.log('Auto-logging in returning user...');
+                const splash = document.getElementById('splash');
+                if (splash) splash.style.display = 'none';
                 if (window.loadUserFromFirebase) {
                   await window.loadUserFromFirebase(user);
                 }
               }
             }
           } catch(e) { console.error('Auto-login error:', e); }
-        }, 1500);
+        }, 800);
       }
     }
   });

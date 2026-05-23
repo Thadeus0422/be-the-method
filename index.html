@@ -18,7 +18,7 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import { getFirestore, collection, addDoc, serverTimestamp, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-  import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  import { getAuth, signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
   import { getStorage, ref, uploadString, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
 
   const firebaseConfig = {
@@ -41,7 +41,22 @@
   window.firebaseDb = db;
   window.firebaseAuth = auth;
   window.firebaseProvider = provider;
-  window.firebaseSignIn = () => signInWithPopup(auth, provider);
+  // Use redirect on mobile (GitHub Pages), popup on localhost
+  const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  window.firebaseSignIn = () => isLocalhost ? signInWithPopup(auth, provider) : signInWithRedirect(auth, provider);
+  
+  // Handle redirect result when returning from Google sign-in
+  getRedirectResult(auth).then(result => {
+    if (result && result.user) {
+      console.log('Redirect sign-in successful:', result.user.displayName);
+      window.currentFirebaseUser = result.user;
+      if (window.loadUserFromFirebase) {
+        window.loadUserFromFirebase(result.user);
+      }
+    }
+  }).catch(err => {
+    console.error('Redirect result error:', err);
+  });
   window.fsCollection = collection;
   window.fsAddDoc = addDoc;
   window.fsServerTimestamp = serverTimestamp;
@@ -904,23 +919,7 @@ body{font-family:var(--font);color:var(--text);overflow:hidden;}
             <option value="Prefer not to say">Prefer not to say</option>
           </select>
         </div>
-        <div>
-          <div style="font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">Natural Body Type</div>
-          <div style="display:flex;flex-direction:column;gap:8px;">
-            <button class="ob-option" onclick="selectOb(this,'bodyType','Ectomorph — Naturally slim, hard to gain muscle/fat')">
-              <div><div style="font-size:14px;font-weight:600;">Ectomorph</div><div style="font-size:11px;color:var(--muted);margin-top:2px;">Naturally slim, fast metabolism, hard to gain weight</div></div>
-            </button>
-            <button class="ob-option" onclick="selectOb(this,'bodyType','Mesomorph — Athletic build, gains muscle easily')">
-              <div><div style="font-size:14px;font-weight:600;">Mesomorph</div><div style="font-size:11px;color:var(--muted);margin-top:2px;">Athletic build, responds well to training</div></div>
-            </button>
-            <button class="ob-option" onclick="selectOb(this,'bodyType','Endomorph — Naturally larger, gains fat and muscle easily')">
-              <div><div style="font-size:14px;font-weight:600;">Endomorph</div><div style="font-size:11px;color:var(--muted);margin-top:2px;">Naturally larger frame, gains weight easily</div></div>
-            </button>
-            <button class="ob-option" onclick="selectOb(this,'bodyType','Mixed / Unsure')">
-              <div><div style="font-size:14px;font-weight:600;">Mixed / Unsure</div><div style="font-size:11px;color:var(--muted);margin-top:2px;">Combination or not sure which applies</div></div>
-            </button>
-          </div>
-        </div>
+
       </div>
       <div class="ob-bottom" style="padding-top:16px;">
         <button class="btn-primary" onclick="obNext()">Continue →</button>
@@ -1750,10 +1749,7 @@ body{font-family:var(--font);color:var(--text);overflow:hidden;}
         Continue with Google
       </button>
       <div style="font-size:11px;color:var(--muted2);text-align:center;line-height:1.5;margin-bottom:16px;">By continuing you agree to our Terms of Service and Privacy Policy</div>
-      <!-- Developer bypass -->
-      <div style="display:flex;justify-content:flex-end;margin-top:4px;">
-        <button onclick="bypassToApp()" style="background:#111;border:none;color:#fff;font-size:11px;font-family:'DM Sans',sans-serif;font-weight:600;cursor:pointer;padding:6px 12px;border-radius:10px;">Skip (testing only)</button>
-      </div>
+
     </div>
   </div>
 

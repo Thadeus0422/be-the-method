@@ -157,6 +157,19 @@ html,body{height:100%;background:#E4E4DE;display:flex;align-items:flex-start;jus
 /* Global dark mode text fix */
 .app * { transition: color 0.2s, background 0.2s; }
 .muscle-card *, .score-hero *, .card *, .feed-item *, .friend-card *, .compete-card *, .setting-row * { color: inherit; }
+/* Force all text elements to respect theme */
+.screen { color: var(--text); }
+.ob-step { color: var(--text); }
+.modal-sheet { color: var(--text); }
+.ob-question { color: var(--text) !important; }
+.ob-sub { color: var(--muted) !important; }
+.ob-step-num { color: var(--muted) !important; }
+input, textarea, select { color: var(--text) !important; background: var(--s2) !important; }
+.tab-btn { color: var(--muted) !important; }
+.tab-btn.active { color: var(--text) !important; }
+.feed-item * { color: var(--text); }
+.friend-card * { color: var(--text); }
+p, h1, h2, h3, h4, span, div, label { color: inherit; }
 body{font-family:var(--font);color:var(--text);overflow:hidden;}
 
 .app{
@@ -249,7 +262,7 @@ body{font-family:var(--font);color:var(--text);overflow:hidden;}
 
 /* ── HEADER ── */
 .hdr{padding:52px 20px 16px;display:flex;align-items:center;justify-content:space-between;}
-.logo{font-family:var(--font-display);font-size:26px;letter-spacing:2px;color:#111;}
+.logo{font-family:var(--font-display);font-size:26px;letter-spacing:2px;color:var(--text);}
 .badge{font-size:10px;background:rgba(0,0,0,.06);color:#111;padding:4px 10px;border-radius:20px;letter-spacing:.5px;font-weight:600;}
 
 /* ── CARDS ── */
@@ -395,11 +408,11 @@ body{font-family:var(--font);color:var(--text);overflow:hidden;}
 .ob-unit-row{display:flex;gap:8px;}
 .ob-unit-btn{
   flex:1;padding:12px;border-radius:12px;
-  background:var(--s2);border:.5px solid var(--border2);
-  color:var(--muted);font-family:var(--font);font-size:13px;font-weight:600;
+  background:var(--s2);border:1.5px solid var(--border2);
+  color:var(--text);font-family:var(--font);font-size:13px;font-weight:600;
   cursor:pointer;transition:all .2s;
 }
-.ob-unit-btn.active{background:rgba(200,241,53,.1);border-color:#111;color:#111;}
+.ob-unit-btn.active{background:var(--text);border-color:var(--text);color:var(--bg);}
 
 .ob-bottom{margin-top:auto;padding-top:20px;}
 .ob-error{
@@ -435,7 +448,7 @@ body{font-family:var(--font);color:var(--text);overflow:hidden;}
   display:flex;flex-direction:column;align-items:center;justify-content:center;
   z-index:500;gap:12px;
 }
-.splash-logo{font-family:var(--font-display);font-family:'Syne',sans-serif;font-size:38px;font-weight:800;letter-spacing:3px;color:#111;}
+.splash-logo{font-family:var(--font-display);font-family:'Syne',sans-serif;font-size:38px;font-weight:800;letter-spacing:3px;color:var(--text);}
 .splash-tag{font-size:13px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;}
 .splash-dot{width:6px;height:6px;border-radius:50%;background:var(--accent);animation:pulse 1.4s ease-in-out infinite;}
 @keyframes pulse{0%,100%{opacity:.3;transform:scale(.8)}50%{opacity:1;transform:scale(1.2)}}
@@ -466,7 +479,7 @@ body{font-family:var(--font);color:var(--text);overflow:hidden;}
 }
 .streak-left{display:flex;align-items:center;gap:10px;}
 .streak-fire{font-size:24px;}
-.streak-info h3{font-family:var(--font-display);font-size:24px;color:#111;line-height:1;}
+.streak-info h3{font-family:var(--font-display);font-size:24px;color:var(--text);line-height:1;}
 .streak-info p{font-size:11px;color:var(--muted);margin-top:1px;}
 .streak-right{font-size:11px;color:var(--muted);text-align:right;line-height:1.5;}
 
@@ -524,24 +537,24 @@ body{font-family:var(--font);color:var(--text);overflow:hidden;}
 .tip-section{margin-bottom:10px;}
 .tip-section-lbl{font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:6px;}
 .tip-item{font-size:12px;color:var(--text);line-height:1.5;padding:4px 0;padding-left:12px;position:relative;}
-.tip-item::before{content:'→';position:absolute;left:0;color:#111;font-size:10px;}
+.tip-item::before{content:'→';position:absolute;left:0;color:var(--muted);font-size:10px;}
 
 /* ══════════════════════════════
    CALENDAR
 ══════════════════════════════ */
 .cal-hdr{padding:52px 16px 16px;display:flex;align-items:center;justify-content:space-between;}
-.cal-title{font-family:var(--font-display);font-size:28px;letter-spacing:2px;}
+.cal-title{font-family:var(--font-display);font-size:28px;letter-spacing:2px;color:var(--text);}
 .month-nav{display:flex;align-items:center;gap:8px;}
 .month-nav button{
   background:var(--s2);border:.5px solid var(--border);color:var(--text);
   width:30px;height:30px;border-radius:50%;cursor:pointer;font-size:13px;
   display:flex;align-items:center;justify-content:center;
 }
-.month-nm{font-size:13px;font-weight:500;min-width:76px;text-align:center;}
+.month-nm{font-size:13px;font-weight:500;min-width:76px;text-align:center;color:var(--text);}
 
 .stats-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;padding:0 16px 16px;}
 .stat-box{background:var(--s1);border-radius:14px;border:.5px solid var(--border);padding:12px;text-align:center;}
-.stat-val{font-family:var(--font-display);font-size:24px;color:#111;line-height:1;}
+.stat-val{font-family:var(--font-display);font-size:24px;color:var(--text);line-height:1;}
 .stat-lbl{font-size:10px;color:var(--muted);margin-top:2px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;}
 
 .weekdays{display:grid;grid-template-columns:repeat(7,1fr);padding:0 16px;margin-bottom:6px;}
@@ -552,9 +565,9 @@ body{font-family:var(--font);color:var(--text);overflow:hidden;}
 .cal-cell-inner{width:100%;height:100%;background:var(--s2);display:flex;align-items:center;justify-content:center;}
 .cal-cell-inner img{width:100%;height:100%;object-fit:cover;}
 .day-num{position:absolute;bottom:2px;right:4px;font-size:9px;font-weight:700;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.9);line-height:1;}
-.cal-cell.has-photo{border:1.5px solid #111;}
+.cal-cell.has-photo{border:1.5px solid var(--border2);}
 .cal-cell.today .cal-cell-inner{background:rgba(200,241,53,.1);}
-.cal-cell.today .day-num{color:#111;}
+.cal-cell.today .day-num{color:var(--text);}
 .cal-cell.no-photo .day-num{color:var(--muted2);text-shadow:none;}
 
 /* ══════════════════════════════
@@ -728,7 +741,7 @@ body{font-family:var(--font);color:var(--text);overflow:hidden;}
 
   <!-- SPLASH -->
   <div id="splash" onclick="dismissSplash()" style="background:#F8F8F6;position:absolute;inset:0;z-index:500;display:flex;flex-direction:column;justify-content:flex-end;padding:32px 24px 80px;overflow:hidden;cursor:pointer;">
-    <div style="font-family:'Syne',sans-serif;font-size:44px;font-weight:800;color:#111;line-height:.92;letter-spacing:-1px;">BE THE<br>METHOD</div>
+    <div style="font-family:'Syne',sans-serif;font-size:44px;font-weight:800;color:var(--text);line-height:.92;letter-spacing:-1px;">BE THE<br>METHOD</div>
     <div style="font-size:11px;color:#999;letter-spacing:3px;text-transform:uppercase;margin-top:20px;font-weight:600;">TRACK · COMPETE · IMPROVE</div>
     <div style="width:7px;height:7px;border-radius:50%;background:#111;margin-top:22px;animation:pulse 1.4s ease-in-out infinite;"></div>
   </div>
@@ -739,7 +752,7 @@ body{font-family:var(--font);color:var(--text);overflow:hidden;}
   <!-- LOADING -->
   <div class="loading-screen" id="loadingOverlay">
     <div class="spinner"></div>
-    <div class="loading-txt" style="color:#111">Analyzing physique…</div>
+    <div class="loading-txt" style="color:var(--text)">Analyzing physique…</div>
     <div class="loading-sub">AI scanning muscle groups</div>
   </div>
 
@@ -1246,7 +1259,7 @@ body{font-family:var(--font);color:var(--text);overflow:hidden;}
   <div class="screen" id="screenFriends">
     <div class="hdr">
       <div class="logo" style="font-size:20px;">Social</div>
-      <button onclick="openModal('addFriendModal')" style="background:rgba(0,0,0,.06);border:.5px solid rgba(0,0,0,.15);color:#111;font-family:var(--font);font-size:12px;font-weight:600;padding:7px 14px;border-radius:20px;cursor:pointer;">+ Add Friend</button>
+      <button onclick="openModal('addFriendModal')" style="background:var(--s2);border:.5px solid var(--border2);color:var(--text);font-family:var(--font);font-size:12px;font-weight:600;padding:7px 14px;border-radius:20px;cursor:pointer;">+ Add Friend</button>
     </div>
 
     <div class="tab-row">
@@ -1261,7 +1274,7 @@ body{font-family:var(--font);color:var(--text);overflow:hidden;}
         <div class="feed-hdr">
           <div class="avatar" style="background:rgba(77,159,255,.15);color:#4D9FFF;">JK</div>
           <div style="flex:1;">
-            <div style="font-size:14px;font-weight:600;">jakefitness</div>
+            <div style="font-size:14px;font-weight:600;color:var(--text);">jakefitness</div>
             <div style="font-size:11px;color:var(--muted);">2 hours ago · Shared full analysis</div>
             <div style="font-size:10px;color:var(--muted);margin-top:2px;">Face hidden</div>
           </div>
@@ -1381,7 +1394,7 @@ body{font-family:var(--font);color:var(--text);overflow:hidden;}
   <div class="screen" id="screenCompete">
     <div class="hdr">
       <div class="logo" style="font-size:20px;">Compete</div>
-      <button onclick="openModal('newChallengeModal')" style="background:rgba(0,0,0,.06);border:.5px solid rgba(0,0,0,.15);color:#111;font-family:var(--font);font-size:12px;font-weight:600;padding:7px 14px;border-radius:20px;cursor:pointer;">+ New</button>
+      <button onclick="openModal('newChallengeModal')" style="background:var(--s2);border:.5px solid var(--border2);color:var(--text);font-family:var(--font);font-size:12px;font-weight:600;padding:7px 14px;border-radius:20px;cursor:pointer;">+ New</button>
     </div>
 
     <!-- Active challenge -->
@@ -1391,7 +1404,7 @@ body{font-family:var(--font);color:var(--text);overflow:hidden;}
       <div class="mode-pill">⚔️ Overall Mode · 30 Days</div>
       <div class="compete-vs">
         <div class="compete-player">
-          <div class="av" style="background:rgba(0,0,0,.06);color:#111;">You</div>
+          <div class="av" style="background:rgba(0,0,0,.06);color:var(--text);">You</div>
           <div class="pname">You</div>
           <div class="pscore">74 → 82</div>
         </div>
@@ -1421,7 +1434,7 @@ body{font-family:var(--font);color:var(--text);overflow:hidden;}
       <div class="mode-pill">💪 Muscle Duel · Chest · 60 Days</div>
       <div class="compete-vs">
         <div class="compete-player">
-          <div class="av" style="background:rgba(0,0,0,.06);color:#111;">You</div>
+          <div class="av" style="background:rgba(0,0,0,.06);color:var(--text);">You</div>
           <div class="pname">You</div>
           <div class="pscore">68 → 76</div>
         </div>
@@ -1495,7 +1508,7 @@ body{font-family:var(--font);color:var(--text);overflow:hidden;}
       <div class="settings-section-lbl">Preferences</div>
       <div class="setting-row">
         <div class="setting-lbl">Dark Mode</div>
-        <button class="toggle on" id="themeToggle" onclick="toggleTheme(this)"></button>
+        <button class="toggle" id="themeToggle" onclick="toggleTheme(this)"></button>
       </div>
       <div class="setting-row">
         <div class="setting-lbl">Weight Units</div>
@@ -1657,7 +1670,7 @@ body{font-family:var(--font);color:var(--text);overflow:hidden;}
       <div class="modal-handle"></div>
       <div style="text-align:center;padding:8px 0 16px;">
         <div style="font-size:52px;margin-bottom:8px;">🏆</div>
-        <div style="font-family:var(--font-display);font-size:40px;color:#111;">You Win!</div>
+        <div style="font-family:var(--font-display);font-size:40px;color:var(--text);">You Win!</div>
         <div style="font-size:13px;color:var(--muted);margin-top:4px;">30-day Overall Challenge · vs mikeripped</div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px;">
@@ -1887,8 +1900,8 @@ body{font-family:var(--font);color:var(--text);overflow:hidden;}
           <span style="font-family:'Syne',sans-serif;font-size:48px;font-weight:800;color:#fff;line-height:1;">$4.99</span>
           <span style="font-size:14px;color:rgba(255,255,255,.5);font-weight:500;">/ month</span>
         </div>
-        <div style="font-size:12px;color:rgba(255,255,255,.4);margin-bottom:20px;">Cancel anytime</div>
-        <button onclick="subscribe()" style="width:100%;padding:16px;border-radius:14px;background:#fff;color:#111;font-family:'Syne',sans-serif;font-size:15px;font-weight:800;border:none;cursor:pointer;letter-spacing:.5px;transition:transform .15s;" onactive="this.style.transform='scale(.97)'">
+        <div style="font-size:12px;color:rgba(255,255,255,.6);margin-bottom:20px;">Cancel anytime</div>
+        <button onclick="subscribe()" style="width:100%;padding:16px;border-radius:14px;background:#fff;color:#111;font-family:'Syne',sans-serif;font-size:15px;font-weight:800;border:none;cursor:pointer;letter-spacing:.5px;transition:transform .15s;">
           Subscribe Now
         </button>
       </div>
@@ -1917,9 +1930,9 @@ body{font-family:var(--font);color:var(--text);overflow:hidden;}
       <div style="width:36px;"></div>
     </div>
 
-    <!-- Camera viewfinder -->
-    <div style="position:relative;flex:1;overflow:hidden;margin:0 16px;">
-      <video id="poseVideo" autoplay playsinline muted style="width:100%;height:100%;object-fit:contain;border-radius:20px;background:#000;"></video>
+    <!-- Camera viewfinder — portrait 3:4 ratio -->
+    <div style="position:relative;overflow:hidden;margin:0 16px;border-radius:20px;background:#000;aspect-ratio:3/4;max-height:calc(100vh - 340px);">
+      <video id="poseVideo" autoplay playsinline muted style="width:100%;height:100%;object-fit:cover;border-radius:20px;background:#000;"></video>
       <canvas id="poseCanvas" style="display:none;"></canvas>
 
       <!-- SVG Pose overlay -->
@@ -2090,7 +2103,7 @@ body{font-family:var(--font);color:var(--text);overflow:hidden;}
     <!-- Pose selector -->
     <div style="padding:12px 16px 8px;">
       <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none;" id="poseSelectorRow">
-        <button class="pose-sel-btn active" onclick="selectPose('front-double-biceps','FRONT DOUBLE BICEPS',this)" style="flex-shrink:0;padding:8px 14px;border-radius:20px;background:#fff;color:#111;border:none;font-family:'Syne',sans-serif;font-size:10px;font-weight:700;cursor:pointer;letter-spacing:.5px;white-space:nowrap;">Front Biceps</button>
+        <button class="pose-sel-btn active" onclick="selectPose('front-double-biceps','FRONT DOUBLE BICEPS',this)" style="flex-shrink:0;padding:8px 14px;border-radius:20px;background:#fff;color:var(--text);border:none;font-family:'Syne',sans-serif;font-size:10px;font-weight:700;cursor:pointer;letter-spacing:.5px;white-space:nowrap;">Front Biceps</button>
         <button class="pose-sel-btn" onclick="selectPose('front-relaxed','FRONT RELAXED',this)" style="flex-shrink:0;padding:8px 14px;border-radius:20px;background:rgba(255,255,255,.15);color:#fff;border:none;font-family:'Syne',sans-serif;font-size:10px;font-weight:700;cursor:pointer;letter-spacing:.5px;white-space:nowrap;">Front Relaxed</button>
         <button class="pose-sel-btn" onclick="selectPose('side-chest','SIDE CHEST',this)" style="flex-shrink:0;padding:8px 14px;border-radius:20px;background:rgba(255,255,255,.15);color:#fff;border:none;font-family:'Syne',sans-serif;font-size:10px;font-weight:700;cursor:pointer;letter-spacing:.5px;white-space:nowrap;">Side Chest</button>
         <button class="pose-sel-btn" onclick="selectPose('back-double-biceps','BACK DOUBLE BICEPS',this)" style="flex-shrink:0;padding:8px 14px;border-radius:20px;background:rgba(255,255,255,.15);color:#fff;border:none;font-family:'Syne',sans-serif;font-size:10px;font-weight:700;cursor:pointer;letter-spacing:.5px;white-space:nowrap;">Back Biceps</button>
@@ -2110,7 +2123,7 @@ body{font-family:var(--font);color:var(--text);overflow:hidden;}
 
     <!-- Timer selector row -->
     <div style="padding:4px 16px 8px;display:flex;align-items:center;justify-content:center;gap:8px;">
-      <button class="timer-btn active" id="timer-off" onclick="setTimer(0,this)" style="padding:6px 14px;border-radius:20px;background:#fff;color:#111;border:none;font-family:'Syne',sans-serif;font-size:10px;font-weight:700;cursor:pointer;letter-spacing:.5px;">OFF</button>
+      <button class="timer-btn active" id="timer-off" onclick="setTimer(0,this)" style="padding:6px 14px;border-radius:20px;background:#fff;color:var(--text);border:none;font-family:'Syne',sans-serif;font-size:10px;font-weight:700;cursor:pointer;letter-spacing:.5px;">OFF</button>
       <button class="timer-btn" id="timer-3" onclick="setTimer(3,this)" style="padding:6px 14px;border-radius:20px;background:rgba(255,255,255,.15);color:#fff;border:none;font-family:'Syne',sans-serif;font-size:10px;font-weight:700;cursor:pointer;letter-spacing:.5px;">3s</button>
       <button class="timer-btn" id="timer-5" onclick="setTimer(5,this)" style="padding:6px 14px;border-radius:20px;background:rgba(255,255,255,.15);color:#fff;border:none;font-family:'Syne',sans-serif;font-size:10px;font-weight:700;cursor:pointer;letter-spacing:.5px;">5s</button>
       <button class="timer-btn" id="timer-10" onclick="setTimer(10,this)" style="padding:6px 14px;border-radius:20px;background:rgba(255,255,255,.15);color:#fff;border:none;font-family:'Syne',sans-serif;font-size:10px;font-weight:700;cursor:pointer;letter-spacing:.5px;">10s</button>
@@ -2373,7 +2386,7 @@ function setUnit(type, unit, btn) {
   } else {
     state.obData.weightUnit = unit;
     state.weightUnit = unit;
-    try { localStorage.setItem('btm_weight_unit', unit); } catch(e) {}
+    try { localStorage.setItem('btm_weight_unit', unit); localStorage.setItem('btm_weight_unit', unit); } catch(e) {}
     const wInput = document.getElementById('obWeight');
     const wSuffix = document.getElementById('weightSuffix');
     const tSuffix = document.getElementById('targetSuffix');
@@ -2876,7 +2889,7 @@ function updatePosesForScope(scope) {
   if (!row) return;
   if (scope === 'top') {
     row.innerHTML = `
-      <button class="pose-sel-btn active" onclick="selectPose('front-double-biceps','FRONT DOUBLE BICEPS',this)" style="flex-shrink:0;padding:8px 14px;border-radius:20px;background:#fff;color:#111;border:none;font-family:'Syne',sans-serif;font-size:10px;font-weight:700;cursor:pointer;letter-spacing:.5px;white-space:nowrap;">Front Biceps</button>
+      <button class="pose-sel-btn active" onclick="selectPose('front-double-biceps','FRONT DOUBLE BICEPS',this)" style="flex-shrink:0;padding:8px 14px;border-radius:20px;background:#fff;color:var(--text);border:none;font-family:'Syne',sans-serif;font-size:10px;font-weight:700;cursor:pointer;letter-spacing:.5px;white-space:nowrap;">Front Biceps</button>
       <button class="pose-sel-btn" onclick="selectPose('front-relaxed','FRONT RELAXED',this)" style="flex-shrink:0;padding:8px 14px;border-radius:20px;background:rgba(255,255,255,.15);color:#fff;border:none;font-family:'Syne',sans-serif;font-size:10px;font-weight:700;cursor:pointer;letter-spacing:.5px;white-space:nowrap;">Front Relaxed</button>
       <button class="pose-sel-btn" onclick="selectPose('side-chest','SIDE CHEST',this)" style="flex-shrink:0;padding:8px 14px;border-radius:20px;background:rgba(255,255,255,.15);color:#fff;border:none;font-family:'Syne',sans-serif;font-size:10px;font-weight:700;cursor:pointer;letter-spacing:.5px;white-space:nowrap;">Side Chest</button>
       <button class="pose-sel-btn" onclick="selectPose('back-double-biceps','BACK DOUBLE BICEPS',this)" style="flex-shrink:0;padding:8px 14px;border-radius:20px;background:rgba(255,255,255,.15);color:#fff;border:none;font-family:'Syne',sans-serif;font-size:10px;font-weight:700;cursor:pointer;letter-spacing:.5px;white-space:nowrap;">Back Biceps</button>
@@ -2886,7 +2899,7 @@ function updatePosesForScope(scope) {
     document.getElementById('poseStepLabel').textContent = 'FRONT PHOTO — 1 OF 2';
   } else {
     row.innerHTML = `
-      <button class="pose-sel-btn active" onclick="selectPose('front-double-biceps','FRONT DOUBLE BICEPS',this)" style="flex-shrink:0;padding:8px 14px;border-radius:20px;background:#fff;color:#111;border:none;font-family:'Syne',sans-serif;font-size:10px;font-weight:700;cursor:pointer;letter-spacing:.5px;white-space:nowrap;">Front Biceps</button>
+      <button class="pose-sel-btn active" onclick="selectPose('front-double-biceps','FRONT DOUBLE BICEPS',this)" style="flex-shrink:0;padding:8px 14px;border-radius:20px;background:#fff;color:var(--text);border:none;font-family:'Syne',sans-serif;font-size:10px;font-weight:700;cursor:pointer;letter-spacing:.5px;white-space:nowrap;">Front Biceps</button>
       <button class="pose-sel-btn" onclick="selectPose('front-relaxed','FRONT RELAXED',this)" style="flex-shrink:0;padding:8px 14px;border-radius:20px;background:rgba(255,255,255,.15);color:#fff;border:none;font-family:'Syne',sans-serif;font-size:10px;font-weight:700;cursor:pointer;letter-spacing:.5px;white-space:nowrap;">Front Relaxed</button>
       <button class="pose-sel-btn" onclick="selectPose('side-chest','SIDE CHEST',this)" style="flex-shrink:0;padding:8px 14px;border-radius:20px;background:rgba(255,255,255,.15);color:#fff;border:none;font-family:'Syne',sans-serif;font-size:10px;font-weight:700;cursor:pointer;letter-spacing:.5px;white-space:nowrap;">Side Chest</button>
       <button class="pose-sel-btn" onclick="selectPose('back-double-biceps','BACK DOUBLE BICEPS',this)" style="flex-shrink:0;padding:8px 14px;border-radius:20px;background:rgba(255,255,255,.15);color:#fff;border:none;font-family:'Syne',sans-serif;font-size:10px;font-weight:700;cursor:pointer;letter-spacing:.5px;white-space:nowrap;">Back Biceps</button>
@@ -3219,13 +3232,55 @@ async function saveCheckin(result) {
 }
 
 function updateStreak(now) {
-  if (state.checkins.length <= 1) { state.streak = 1; }
-  else {
+  if (state.checkins.length <= 1) {
+    state.streak = 1;
+  } else {
     const prev = state.checkins[state.checkins.length - 2].date;
-    const diff = Math.floor((now - prev) / (1000*60*60*24));
-    if (diff <= 1) state.streak++;
-    else state.streak = 1;
+    const diffDays = Math.floor((now - new Date(prev)) / (1000*60*60*24));
+    if (diffDays <= 1) state.streak++;
+    else state.streak = 1; // missed a day — reset
   }
+  updateStreakUI();
+}
+
+// Recalculate streak from scratch based on checkin history
+function recalcStreak() {
+  if (!state.checkins || state.checkins.length === 0) {
+    state.streak = 0;
+    updateStreakUI();
+    return;
+  }
+
+  // Sort checkins by date
+  const sorted = [...state.checkins].sort((a, b) => new Date(a.date) - new Date(b.date));
+  
+  // Check if last checkin was today or yesterday
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const lastDate = new Date(sorted[sorted.length - 1].date);
+  const lastDay = new Date(lastDate.getFullYear(), lastDate.getMonth(), lastDate.getDate());
+  const daysSinceLast = Math.floor((today - lastDay) / (1000*60*60*24));
+  
+  // If more than 1 day since last checkin, streak is 0
+  if (daysSinceLast > 1) {
+    state.streak = 0;
+    updateStreakUI();
+    return;
+  }
+
+  // Count consecutive days backwards from last checkin
+  let streak = 1;
+  for (let i = sorted.length - 1; i > 0; i--) {
+    const curr = new Date(sorted[i].date);
+    const prev = new Date(sorted[i-1].date);
+    const currDay = new Date(curr.getFullYear(), curr.getMonth(), curr.getDate());
+    const prevDay = new Date(prev.getFullYear(), prev.getMonth(), prev.getDate());
+    const diff = Math.floor((currDay - prevDay) / (1000*60*60*24));
+    if (diff === 1) streak++;
+    else break; // gap found — stop counting
+  }
+
+  state.streak = streak;
   updateStreakUI();
 }
 
@@ -3537,7 +3592,7 @@ function showBlurPositioner(imgSrc, onConfirm) {
     </div>
     <div style="padding:12px 16px 40px;display:flex;gap:10px;">
       <button onclick="adjustBlurSize(-1)" style="flex:1;padding:12px;border-radius:12px;background:rgba(255,255,255,.1);border:none;color:#fff;font-family:'Syne',sans-serif;font-size:12px;font-weight:700;cursor:pointer;">Smaller</button>
-      <button onclick="confirmBlurPosition()" style="flex:2;padding:12px;border-radius:12px;background:#fff;border:none;color:#111;font-family:'Syne',sans-serif;font-size:13px;font-weight:800;cursor:pointer;letter-spacing:.5px;">Confirm</button>
+      <button onclick="confirmBlurPosition()" style="flex:2;padding:12px;border-radius:12px;background:#fff;border:none;color:var(--text);font-family:'Syne',sans-serif;font-size:13px;font-weight:800;cursor:pointer;letter-spacing:.5px;">Confirm</button>
       <button onclick="adjustBlurSize(1)" style="flex:1;padding:12px;border-radius:12px;background:rgba(255,255,255,.1);border:none;color:#fff;font-family:'Syne',sans-serif;font-size:12px;font-weight:700;cursor:pointer;">Bigger</button>
     </div>`;
 
@@ -3906,7 +3961,7 @@ function postComment() {
   const container = document.getElementById('commentsContainer');
   const div = document.createElement('div');
   div.style.cssText = 'display:flex;gap:8px;align-items:flex-start;';
-  div.innerHTML = `<div style="width:28px;height:28px;border-radius:50%;background:rgba(0,0,0,.08);color:#111;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0;">${state.profile.name[0]?.toUpperCase()||'Y'}</div><div style="background:var(--s2);border-radius:0 12px 12px 12px;padding:8px 10px;flex:1;"><div style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:2px;">${state.profile.username}</div><div style="font-size:12px;color:var(--muted);">${txt}</div></div>`;
+  div.innerHTML = `<div style="width:28px;height:28px;border-radius:50%;background:rgba(0,0,0,.08);color:var(--text);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0;">${state.profile.name[0]?.toUpperCase()||'Y'}</div><div style="background:var(--s2);border-radius:0 12px 12px 12px;padding:8px 10px;flex:1;"><div style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:2px;">${state.profile.username}</div><div style="font-size:12px;color:var(--muted);">${txt}</div></div>`;
   container.appendChild(div);
   input.value = '';
 }
@@ -3916,7 +3971,7 @@ function postFeedComment(input) {
   const feed = input.closest('.feed-item').querySelector('[style*="flex-direction:column"]') || input.parentElement.previousElementSibling;
   const div = document.createElement('div');
   div.style.cssText = 'display:flex;gap:8px;margin-bottom:8px;';
-  div.innerHTML = `<div style="width:26px;height:26px;border-radius:50%;background:rgba(0,0,0,.08);color:#111;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;flex-shrink:0;">${state.profile.name[0]?.toUpperCase()||'Y'}</div><div style="background:var(--s2);border-radius:0 10px 10px 10px;padding:7px 10px;flex:1;font-size:12px;color:var(--muted);">${txt}</div>`;
+  div.innerHTML = `<div style="width:26px;height:26px;border-radius:50%;background:rgba(0,0,0,.08);color:var(--text);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;flex-shrink:0;">${state.profile.name[0]?.toUpperCase()||'Y'}</div><div style="background:var(--s2);border-radius:0 10px 10px 10px;padding:7px 10px;flex:1;font-size:12px;color:var(--muted);">${txt}</div>`;
   input.parentElement.insertAdjacentElement('beforebegin', div);
   input.value = '';
 }
@@ -4386,6 +4441,14 @@ YOUR COACHING STYLE — ONE QUESTION AT A TIME:
 // Init compete days
 renderCompeteDays();
 // Dev reset removed — using real data
+// Recalculate streak on every load to catch missed days
+setTimeout(() => { if (typeof recalcStreak === 'function') recalcStreak(); }, 2000);
+
+// Restore height unit
+try {
+  const savedHUnit = localStorage.getItem('btm_height_unit');
+  if (savedHUnit) state.obData.heightUnit = savedHUnit;
+} catch(e) {}
 
 // Restore weight unit
 try {
@@ -4402,13 +4465,12 @@ try {
 try {
   const savedDark = localStorage.getItem('btm_dark_mode');
   // Default to dark mode if never set
-  if (savedDark === null) { try { localStorage.setItem('btm_dark_mode','1'); } catch(e){} }
-  if (savedDark !== '0') {
+  const themeBtn = document.getElementById('themeToggle');
+  if (savedDark === '1') {
     const app = document.getElementById('app');
     if (app) {
       app.classList.add('dark-mode-on');
-      const btn = document.getElementById('themeToggle');
-      if (btn) btn.classList.add('on');
+      if (themeBtn) themeBtn.classList.add('on');
       // Apply dark colors
       app.style.setProperty('--bg','#0e0e0e');
       app.style.setProperty('--s1','#1c1c1c');
@@ -4698,10 +4760,9 @@ window.loadUserFromFirebase = async function(user) {
           });
           if (state.checkins.length > 0) {
             state.lastCheckinDate = state.checkins[state.checkins.length-1].date;
-            // Recalculate streak
-            state.streak = state.checkins.length;
-            updateStreakUI();
-            console.log('Loaded', state.checkins.length, 'checkins from Firebase');
+            // Properly recalculate streak accounting for missed days
+            recalcStreak();
+            console.log('Loaded', state.checkins.length, 'checkins from Firebase. Streak:', state.streak);
           }
         } catch(e) { console.error('Could not load checkins:', e); }
 

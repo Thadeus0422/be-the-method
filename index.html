@@ -3180,21 +3180,31 @@ overall_score (integer 1-100), overall_label (2-3 word honest string), overall_s
 async function saveCheckin(result) {
   const now = new Date();
   state.currentCaption = document.getElementById('captionInput').value || '';
+
+  // CAPTURE photos into local variables BEFORE clearing state
+  const frontPhoto = state.currentPhotoFront;
+  const backPhoto = state.currentPhotoBack;
+  const checkinMode = state.currentMode;
+  const checkinScope = state.photoScope;
+  const checkinCaption = state.currentCaption;
+  const checkinHideFace = state.hideFace;
+
+  // Add to local checkins array
   state.checkins.push({
     date: now,
-    photo: state.currentPhotoBack,
-    photoFront: state.currentPhotoFront,
+    photo: backPhoto,
+    photoFront: frontPhoto,
     result,
-    mode: state.currentMode,
-    caption: state.currentCaption,
-    hideFace: state.hideFace,
-    scope: state.photoScope
+    mode: checkinMode,
+    caption: checkinCaption,
+    hideFace: checkinHideFace,
+    scope: checkinScope
   });
-  // Tag result with scope so renderResults always knows
-  result.scope = state.photoScope;
+  result.scope = checkinScope;
   state.lastCheckinDate = now;
   updateStreak(now);
-  // Reset photo step for next time
+
+  // Reset UI for next time
   state.photoStep = 'front';
   state.currentPhotoFront = null; state.currentPhotoFrontB64 = null;
   state.currentPhotoBack = null; state.currentPhotoBackB64 = null;
@@ -3204,7 +3214,6 @@ async function saveCheckin(result) {
   document.getElementById('photoStepBadge').textContent = 'FRONT PHOTO — 1 OF 2';
   document.getElementById('photoStepBadge').style.background = '#111';
   document.getElementById('camPlaceholder').style.display = 'flex';
-  // Reset hide face toggle
   state.hideFace = false;
   const hft = document.getElementById('hideFaceToggle');
   const hfthumb = document.getElementById('hideFaceThumb');
@@ -3215,56 +3224,61 @@ async function saveCheckin(result) {
   document.getElementById('lockedOverlay').style.display = 'flex';
   document.getElementById('analyzeBtn').disabled = true;
   showToast('✓ Day ' + state.streak + ' checked in!');
-  // Save checkin scores to Firestore (NO photos saved — stays private on device only)
+
+  // Save to Firebase
   if (window.firebaseDb && window.currentFirebaseUser) {
     try {
       const uid = window.currentFirebaseUser.uid;
       const checkinData = {
-        date: new Date().toISOString(),
+        date: now.toISOString(),
         overallScore: result.overall_score,
         overallLabel: result.overall_label,
-        overallSummary: result.overall_summary,
+        overallSummary: result.overall_summary || '',
         muscleScores: result.muscles?.map(m => ({name: m.name, score: m.score})) || [],
-        mode: state.currentMode,
-        scope: state.photoScope,
+        mode: checkinMode,
+        scope: checkinScope,
+        caption: checkinCaption,
         streak: state.streak
       };
-      // Save photos to Firebase Storage — wait for storage to be ready
-      const dateStr = new Date().toISOString().split('T')[0];
-      console.log('Storage check — firebaseStorage:', !!window.firebaseStorage, 'fsRef:', !!window.fsRef, 'fsUploadString:', !!window.fsUploadString);
-      // Wait up to 3 seconds for Firebase Storage to initialize
+
+      // Wait for Firebase Storage to be ready
       let storageWait = 0;
       while ((!window.firebaseStorage || !window.fsRef || !window.fsUploadString) && storageWait < 15) {
         await new Promise(r => setTimeout(r, 200));
         storageWait++;
       }
+
+      // Upload photos using the captured variables (not cleared state)
+      const dateStr = now.toISOString().split('T')[0] + '_' + now.getTime();
       if (window.firebaseStorage && window.fsRef && window.fsUploadString) {
         try {
-          if (state.currentPhotoFront) {
-            console.log('Uploading front photo...');
+          if (frontPhoto) {
             const frontRef = window.fsRef(window.firebaseStorage, `users/${uid}/photos/${dateStr}_front.jpg`);
-            const frontSnap = await window.fsUploadString(frontRef, state.currentPhotoFront, 'data_url');
+            const frontSnap = await window.fsUploadString(frontRef, frontPhoto, 'data_url');
             checkinData.photoFrontUrl = await window.fsGetDownloadURL(frontSnap.ref);
-            console.log('Front photo saved ✓', checkinData.photoFrontUrl);
+            console.log('✓ Front photo saved to Storage');
           }
-          if (state.currentPhotoBack) {
-            console.log('Uploading back photo...');
+          if (backPhoto) {
             const backRef = window.fsRef(window.firebaseStorage, `users/${uid}/photos/${dateStr}_back.jpg`);
-            const backSnap = await window.fsUploadString(backRef, state.currentPhotoBack, 'data_url');
+            const backSnap = await window.fsUploadString(backRef, backPhoto, 'data_url');
             checkinData.photoBackUrl = await window.fsGetDownloadURL(backSnap.ref);
-            console.log('Back photo saved ✓', checkinData.photoBackUrl);
+            console.log('✓ Back photo saved to Storage');
           }
-          console.log('Photos saved to Firebase Storage ✓');
         } catch(storageErr) {
-          console.error('Photo storage failed:', storageErr.code, storageErr.message);
+          console.error('Photo upload failed:', storageErr.code, storageErr.message);
         }
       } else {
-        console.error('Firebase Storage not available after waiting. Storage:', !!window.firebaseStorage);
+        console.warn('Firebase Storage not available — photos not saved to cloud');
       }
-      window.fsAddDoc(window.fsCollection(window.firebaseDb, 'users', uid, 'checkins'), checkinData)
-        .then(() => console.log('Check-in saved to Firestore ✓'))
-        .catch(e => console.error('Firestore checkin save failed:', e));
-    } catch(e) { console.error('Firestore error:', e); }
+
+      // Save checkin document (with photo URLs if upload succeeded)
+      await window.fsAddDoc(window.fsCollection(window.firebaseDb, 'users', uid, 'checkins'), checkinData);
+      console.log('✓ Check-in saved to Firestore', checkinData);
+    } catch(e) {
+      console.error('Firestore save error:', e);
+    }
+  } else {
+    console.warn('Not signed in — checkin only saved locally');
   }
 }
 

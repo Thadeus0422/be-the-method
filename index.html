@@ -2589,19 +2589,31 @@ async function startCamera() {
     // Mirror front camera, don't mirror back camera
     video.style.transform = facingMode === 'user' ? 'scaleX(-1)' : 'scaleX(1)';
 
-    // Force minimum zoom — widest angle
+    // Force the WIDEST possible lens / minimum zoom on iPhone
     const track = poseStream.getVideoTracks()[0];
-    if (track) {
-      const capabilities = track.getCapabilities ? track.getCapabilities() : {};
-      console.log('Camera zoom capabilities:', capabilities.zoom);
+    if (track && track.getCapabilities) {
+      const caps = track.getCapabilities();
+      console.log('Full capabilities:', JSON.stringify(caps));
+      const settings = {};
+      // Set zoom to absolute minimum
+      if (caps.zoom) {
+        settings.zoom = caps.zoom.min;
+      }
+      // Some iPhones expose focusDistance — set to allow wide framing
+      try {
+        await track.applyConstraints({ advanced: [settings] });
+        console.log('Applied min zoom:', settings.zoom);
+      } catch(e) { console.log('Could not apply zoom constraint:', e); }
+    }
+
+    // Set up zoom slider range
+    if (track && track.getCapabilities) {
+      const capabilities = track.getCapabilities();
       const slider = document.getElementById('zoomSlider');
       if (capabilities.zoom) {
         const minZoom = capabilities.zoom.min;
         const maxZoom = Math.min(capabilities.zoom.max, 8);
         currentZoom = minZoom;
-        try {
-          await track.applyConstraints({ advanced: [{ zoom: minZoom }] });
-        } catch(e) { console.log('Could not set zoom:', e); }
         if (slider) {
           slider.min = minZoom;
           slider.max = maxZoom;
@@ -2610,7 +2622,6 @@ async function startCamera() {
         }
         updateZoomDisplay();
       } else {
-        // No hardware zoom support
         currentZoom = 1;
         if (slider) { slider.min = 1; slider.max = 3; slider.step = 0.1; slider.value = 1; }
         updateZoomDisplay();

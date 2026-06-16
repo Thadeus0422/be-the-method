@@ -1554,6 +1554,10 @@ body{font-family:var(--font);color:var(--text);overflow:hidden;}
         <div class="setting-lbl">System Status</div>
         <div class="setting-val"><span class="chevron">›</span></div>
       </div>
+      <div class="setting-row" onclick="resetTodayCheckin()">
+        <div class="setting-lbl" style="color:var(--muted);font-size:12px;">Reset Today's Check-in (Testing)</div>
+        <div class="setting-val"><span class="chevron">›</span></div>
+      </div>
       <div class="setting-row" onclick="confirmLogout()">
         <div class="setting-lbl"><span style="color:var(--red);">Log Out</span></div>
         <div class="setting-val"><span class="chevron">›</span></div>
@@ -1570,15 +1574,17 @@ body{font-family:var(--font);color:var(--text);overflow:hidden;}
     <div class="modal-sheet" id="dayModalSheet" style="max-height:90%;overflow-y:auto;transition:transform .3s ease;">
       <div class="modal-handle"></div>
 
-      <!-- Photos -->
+      <!-- Photos — tap to view fullscreen -->
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
-        <div style="position:relative;">
+        <div style="position:relative;cursor:pointer;" onclick="openFullscreenPhoto(document.getElementById('modalPhotoFront').src, 'Front Photo')">
           <img id="modalPhotoFront" src="" alt="" style="width:100%;height:180px;object-fit:cover;border-radius:12px;background:var(--s3);">
           <div style="position:absolute;bottom:6px;left:6px;background:rgba(0,0,0,.6);color:#fff;font-size:9px;font-weight:700;padding:3px 8px;border-radius:10px;letter-spacing:.5px;">FRONT</div>
+          <div style="position:absolute;top:6px;right:6px;background:rgba(0,0,0,.5);color:#fff;font-size:14px;width:24px;height:24px;border-radius:6px;display:flex;align-items:center;justify-content:center;">⛶</div>
         </div>
-        <div style="position:relative;">
+        <div style="position:relative;cursor:pointer;" onclick="openFullscreenPhoto(document.getElementById('modalPhoto').src, 'Back Photo')">
           <img id="modalPhoto" src="" alt="" style="width:100%;height:180px;object-fit:cover;border-radius:12px;background:var(--s3);">
           <div style="position:absolute;bottom:6px;left:6px;background:rgba(0,0,0,.6);color:#fff;font-size:9px;font-weight:700;padding:3px 8px;border-radius:10px;letter-spacing:.5px;">BACK</div>
+          <div style="position:absolute;top:6px;right:6px;background:rgba(0,0,0,.5);color:#fff;font-size:14px;width:24px;height:24px;border-radius:6px;display:flex;align-items:center;justify-content:center;">⛶</div>
         </div>
       </div>
 
@@ -3152,8 +3158,22 @@ overall_score (integer 1-100), overall_label (2-3 word honest string), overall_s
     if (data.error) throw new Error('API error: ' + data.error.message);
     if (!data.content) throw new Error('No content in response: ' + JSON.stringify(data));
     const raw = data.content.map(c=>c.text||'').join('');
-    const clean = raw.replace(/```json|```/g,'').trim();
-    const result = JSON.parse(clean);
+    // Try multiple JSON extraction strategies
+    let result;
+    try {
+      const clean = raw.replace(/```json|```/g,'').trim();
+      result = JSON.parse(clean);
+    } catch(e1) {
+      try {
+        // Extract JSON object from response
+        const jsonMatch = raw.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) throw new Error('No JSON found in response');
+        result = JSON.parse(jsonMatch[0]);
+      } catch(e2) {
+        console.error('JSON parse failed:', e2, 'Raw response:', raw.substring(0, 500));
+        throw new Error('Could not parse AI response as JSON: ' + e2.message);
+      }
+    }
     document.getElementById('loadingOverlay').classList.remove('show');
     if (result.rephoto === true) {
       showRephotoModal(result.rephoto_reason || 'One or more body parts could not be clearly seen. Please retake your photos.');
@@ -3665,7 +3685,7 @@ function showBlurPositioner(imgSrc, onConfirm) {
     </div>
     <div style="flex:1;position:relative;margin:0 16px;overflow:hidden;border-radius:16px;" id="blurPosContainer">
       <img src="${imgSrc}" style="width:100%;height:100%;object-fit:contain;display:block;" id="blurPosImg">
-      <div id="blurOval" style="display:none;" style="position:absolute;border:2.5px dashed #fff;border-radius:50%;cursor:move;box-shadow:0 0 0 2000px rgba(0,0,0,0.45);touch-action:none;"></div>
+      <div id="blurOval" style="position:absolute;border:2.5px dashed #fff;border-radius:50%;cursor:move;box-shadow:0 0 0 2000px rgba(0,0,0,0.45);touch-action:none;display:none;"></div>
     </div>
     <div style="padding:12px 16px 40px;display:flex;gap:10px;">
       <button onclick="adjustBlurSize(-1)" style="flex:1;padding:12px;border-radius:12px;background:rgba(255,255,255,.1);border:none;color:#fff;font-family:'Syne',sans-serif;font-size:12px;font-weight:700;cursor:pointer;">Smaller</button>
@@ -3778,6 +3798,220 @@ function confirmBlurPosition() {
   if (overlay) overlay.remove();
   if (currentBlurImgSrc && currentBlurCallback) {
     applyOvalBlur(currentBlurImgSrc, blurOvalPos.x, blurOvalPos.y, blurOvalSize.rx, blurOvalSize.ry, currentBlurCallback);
+  }
+}
+
+function showMonthlyRecap() {
+  // Get current displayed month checkins
+  const year = calState.year;
+  const month = calState.month;
+  const monthCheckins = state.checkins.filter(ci => {
+    const d = new Date(ci.date);
+    return d.getFullYear() === year && d.getMonth() === month;
+  }).sort((a, b) => new Date(a.date) - new Date(b.date));
+
+  if (monthCheckins.length < 2) {
+    showToast('Need at least 2 check-ins this month for a recap!');
+    return;
+  }
+
+  const monthName = new Date(year, month).toLocaleString('default', { month: 'long', year: 'numeric' });
+  const first = monthCheckins[0];
+  const last = monthCheckins[monthCheckins.length - 1];
+
+  // Calculate muscle progress
+  const muscleProgress = [];
+  if (first.result?.muscles && last.result?.muscles) {
+    first.result.muscles.forEach(fm => {
+      const lm = last.result.muscles.find(m => m.name === fm.name);
+      if (lm) {
+        const diff = lm.score - fm.score;
+        muscleProgress.push({ name: fm.name, start: fm.score, end: lm.score, diff });
+      }
+    });
+  }
+  const overallDiff = (last.result?.overall_score || 0) - (first.result?.overall_score || 0);
+
+  // Build recap overlay
+  const existing = document.getElementById('monthlyRecapOverlay');
+  if (existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'monthlyRecapOverlay';
+  overlay.style.cssText = 'position:absolute;inset:0;background:var(--bg);z-index:400;overflow-y:auto;';
+
+  // Build photo slides HTML
+  const photoSlides = monthCheckins.map((ci, i) => {
+    const date = new Date(ci.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const frontSrc = ci.photoFront || ci.photoFrontUrl || '';
+    const backSrc = ci.photo || ci.photoBackUrl || '';
+    return `
+      <div style="min-width:100%;display:flex;flex-direction:column;gap:8px;padding:0 16px;box-sizing:border-box;">
+        <div style="text-align:center;font-size:11px;color:var(--muted);font-weight:600;letter-spacing:.5px;text-transform:uppercase;">${date} · Check-in ${i+1} of ${monthCheckins.length}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <div style="position:relative;">
+            ${frontSrc ? `<img src="${frontSrc}" style="width:100%;aspect-ratio:.75;object-fit:cover;border-radius:12px;background:var(--s2);">` : `<div style="width:100%;aspect-ratio:.75;background:var(--s2);border-radius:12px;display:flex;align-items:center;justify-content:center;"><span style="font-size:24px;">📷</span></div>`}
+            <div style="position:absolute;bottom:6px;left:6px;background:rgba(0,0,0,.6);color:#fff;font-size:9px;font-weight:700;padding:2px 8px;border-radius:8px;">FRONT</div>
+          </div>
+          <div style="position:relative;">
+            ${backSrc ? `<img src="${backSrc}" style="width:100%;aspect-ratio:.75;object-fit:cover;border-radius:12px;background:var(--s2);">` : `<div style="width:100%;aspect-ratio:.75;background:var(--s2);border-radius:12px;display:flex;align-items:center;justify-content:center;"><span style="font-size:24px;">📷</span></div>`}
+            <div style="position:absolute;bottom:6px;left:6px;background:rgba(0,0,0,.6);color:#fff;font-size:9px;font-weight:700;padding:2px 8px;border-radius:8px;">BACK</div>
+          </div>
+        </div>
+        <div style="text-align:center;font-size:22px;font-family:'Syne',sans-serif;font-weight:800;color:var(--text);">${ci.result?.overall_score || '—'}<span style="font-size:12px;color:var(--muted);font-weight:400;">/100</span></div>
+      </div>`;
+  }).join('');
+
+  // Muscle progress rows
+  const progressRows = muscleProgress.map(m => {
+    const color = m.diff > 0 ? '#2A7A4A' : m.diff < 0 ? '#C43030' : 'var(--muted)';
+    const arrow = m.diff > 0 ? '↑' : m.diff < 0 ? '↓' : '→';
+    return `
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:.5px solid var(--border);">
+        <div style="font-size:13px;color:var(--text);font-weight:500;">${m.name}</div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div style="font-size:12px;color:var(--muted);">${m.start} → ${m.end}</div>
+          <div style="font-size:13px;font-weight:700;color:${color};min-width:36px;text-align:right;">${arrow} ${Math.abs(m.diff)}</div>
+        </div>
+      </div>`;
+  }).join('');
+
+  const overallColor = overallDiff > 0 ? '#2A7A4A' : overallDiff < 0 ? '#C43030' : 'var(--muted)';
+
+  overlay.innerHTML = `
+    <!-- Header -->
+    <div style="padding:52px 16px 16px;display:flex;align-items:center;gap:12px;">
+      <button onclick="document.getElementById('monthlyRecapOverlay').remove()" style="width:36px;height:36px;border-radius:50%;background:var(--s2);border:none;color:var(--text);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;">←</button>
+      <div>
+        <div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:var(--text);">Monthly Recap</div>
+        <div style="font-size:12px;color:var(--muted);">${monthName} · ${monthCheckins.length} check-ins</div>
+      </div>
+    </div>
+
+    <!-- Photo slideshow -->
+    <div style="position:relative;overflow:hidden;margin-bottom:20px;">
+      <div id="recapSlider" style="display:flex;transition:transform .3s ease;gap:0;" ontouchstart="recapTouchStart(event)" ontouchend="recapTouchEnd(event)">
+        ${photoSlides}
+      </div>
+      <!-- Dots -->
+      <div style="display:flex;justify-content:center;gap:6px;margin-top:12px;">
+        ${monthCheckins.map((_, i) => `<div class="recap-dot" id="recapDot${i}" style="width:6px;height:6px;border-radius:50%;background:${i===0?'var(--text)':'var(--s3)'};transition:background .2s;"></div>`).join('')}
+      </div>
+    </div>
+
+    <!-- Progress Summary -->
+    <div style="padding:0 16px 40px;">
+      <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:12px;">Progress This Month</div>
+
+      <!-- Overall score change -->
+      <div style="padding:16px;background:var(--s1);border-radius:14px;border:.5px solid var(--border);margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;">
+        <div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:2px;">Overall Score</div>
+          <div style="font-size:28px;font-family:'Syne',sans-serif;font-weight:800;color:${overallColor};">${overallDiff > 0 ? '+' : ''}${overallDiff} pts</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:12px;color:var(--muted);">Start → End</div>
+          <div style="font-size:16px;font-weight:700;color:var(--text);">${first.result?.overall_score || '—'} → ${last.result?.overall_score || '—'}</div>
+        </div>
+      </div>
+
+      <!-- Muscle breakdown -->
+      <div style="background:var(--s1);border-radius:14px;border:.5px solid var(--border);padding:4px 16px;">
+        ${progressRows || '<div style="padding:16px 0;text-align:center;color:var(--muted);font-size:13px;">No muscle data available</div>'}
+      </div>
+    </div>`;
+
+  document.getElementById('app').appendChild(overlay);
+
+  // Swipe for slideshow
+  let recapIndex = 0;
+  let recapStartX = 0;
+  window.recapTouchStart = (e) => { recapStartX = e.touches[0].clientX; };
+  window.recapTouchEnd = (e) => {
+    const dx = e.changedTouches[0].clientX - recapStartX;
+    if (Math.abs(dx) > 50) {
+      if (dx < 0 && recapIndex < monthCheckins.length - 1) recapIndex++;
+      else if (dx > 0 && recapIndex > 0) recapIndex--;
+      document.getElementById('recapSlider').style.transform = `translateX(-${recapIndex * 100}%)`;
+      monthCheckins.forEach((_, i) => {
+        const dot = document.getElementById('recapDot' + i);
+        if (dot) dot.style.background = i === recapIndex ? 'var(--text)' : 'var(--s3)';
+      });
+    }
+  };
+}
+
+function openFullscreenPhoto(src, title) {
+  if (!src || src === window.location.href) { showToast('No photo available'); return; }
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:absolute;inset:0;background:#000;z-index:600;display:flex;flex-direction:column;';
+  overlay.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:52px 16px 12px;">
+      <button onclick="this.closest('div[style*=absolute]').remove()" style="background:rgba(255,255,255,.1);border:none;color:#fff;width:36px;height:36px;border-radius:50%;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
+      <div style="font-size:14px;font-weight:600;color:#fff;">${title}</div>
+      <button onclick="sharePhoto('${src}')" style="background:rgba(255,255,255,.1);border:none;color:#fff;width:36px;height:36px;border-radius:50%;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;">⬆</button>
+    </div>
+    <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:0 16px;">
+      <img src="${src}" style="max-width:100%;max-height:100%;object-fit:contain;border-radius:8px;">
+    </div>
+    <div style="padding:16px;display:flex;gap:10px;justify-content:center;padding-bottom:40px;">
+      <button onclick="downloadPhoto('${src}', '${title}')" style="flex:1;padding:14px;border-radius:14px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#fff;font-family:'Syne',sans-serif;font-size:13px;font-weight:700;cursor:pointer;">Download</button>
+      <button onclick="sharePhoto('${src}')" style="flex:1;padding:14px;border-radius:14px;background:#fff;border:none;color:#111;font-family:'Syne',sans-serif;font-size:13px;font-weight:700;cursor:pointer;">Share</button>
+    </div>`;
+  document.getElementById('app').appendChild(overlay);
+}
+
+function downloadPhoto(src, title) {
+  // For Firebase Storage URLs or data URLs
+  if (src.startsWith('data:')) {
+    // Data URL — direct download
+    const a = document.createElement('a');
+    a.href = src;
+    a.download = title.replace(/\s+/g, '_') + '_' + new Date().toISOString().split('T')[0] + '.jpg';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    showToast('Photo downloaded!');
+  } else {
+    // Firebase Storage URL — open in new tab (CORS prevents direct download from localhost)
+    // On GitHub Pages this will work via fetch
+    window.open(src, '_blank');
+    showToast('Photo opened in new tab — long press to save!');
+  }
+}
+
+async function sharePhoto(src) {
+  try {
+    if (src.startsWith('data:')) {
+      // Data URL — convert to blob and share
+      const res = await fetch(src);
+      const blob = await res.blob();
+      const file = new File([blob], 'physique_checkin.jpg', { type: 'image/jpeg' });
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ title: 'Be The Method Check-in', files: [file] });
+      } else if (navigator.share) {
+        await navigator.share({ title: 'Be The Method Check-in', url: window.location.href });
+      } else {
+        showToast('Share not supported — use Download instead');
+      }
+    } else {
+      // Firebase Storage URL — use Web Share API with URL or open
+      if (navigator.share) {
+        await navigator.share({ title: 'Be The Method — My Physique Check-in', url: src });
+        showToast('Shared!');
+      } else {
+        // Copy URL to clipboard
+        await navigator.clipboard.writeText(src);
+        showToast('Photo URL copied to clipboard!');
+      }
+    }
+  } catch(e) {
+    if (e.name !== 'AbortError') {
+      console.error('Share failed:', e);
+      // Last resort — open in new tab
+      window.open(src, '_blank');
+      showToast('Opened in new tab — long press to save!');
+    }
   }
 }
 
@@ -4212,6 +4446,35 @@ function toggleTheme(btn) {
       : (isDark ? '#555' : '#bbb');
   });
 }
+async function resetTodayCheckin() {
+  if (!confirm('Reset today\'s check-in? This lets you check in again today for testing.')) return;
+  const today = new Date();
+  // Remove today's checkins from memory
+  state.checkins = state.checkins.filter(ci => {
+    const d = new Date(ci.date);
+    return !(d.getDate() === today.getDate() && d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear());
+  });
+  state.lastCheckinDate = null;
+  // Reset UI
+  const locked = document.getElementById('lockedOverlay');
+  const analyzeBtn = document.getElementById('analyzeBtn');
+  const camPlaceholder = document.getElementById('camPlaceholder');
+  if (locked) locked.style.display = 'none';
+  if (analyzeBtn) analyzeBtn.disabled = false;
+  if (camPlaceholder) camPlaceholder.style.display = 'flex';
+  // Reset photo previews
+  state.currentPhotoFront = null;
+  state.currentPhotoBack = null;
+  state.photoStep = 'front';
+  const previewFront = document.getElementById('previewFront');
+  const previewBack = document.getElementById('previewBack');
+  if (previewFront) previewFront.style.display = 'none';
+  if (previewBack) previewBack.style.display = 'none';
+  recalcStreak();
+  showToast("Today's check-in reset — you can check in again!");
+  showScreen('screenCamera');
+}
+
 async function showSystemStatus() {
   const checks = [];
   // Firebase connection
@@ -4298,6 +4561,12 @@ function setWeightUnit(unit, btn) {
   state.weightUnit = unit;
   state.obData.weightUnit = unit;
   try { localStorage.setItem('btm_weight_unit', unit); } catch(e) {}
+  // Sync to Firebase so it works across devices
+  if (window.firebaseDb && window.currentFirebaseUser && window.fsSetDoc && window.fsDoc) {
+    window.fsSetDoc(window.fsDoc(window.firebaseDb, 'users', window.currentFirebaseUser.uid),
+      { obData: { weightUnit: unit } }, { merge: true }
+    ).catch(e => console.error('Weight unit sync failed:', e));
+  }
   document.getElementById('unitDisplay').innerHTML = unit + ' <span class="chevron">›</span>';
   document.getElementById('unitKgCheck').style.display = unit === 'kg' ? 'inline' : 'none';
   document.getElementById('unitLbsCheck').style.display = unit === 'lbs' ? 'inline' : 'none';
@@ -4603,6 +4872,11 @@ renderCompeteDays();
 // Recalculate streak on every load to catch missed days
 setTimeout(() => { if (typeof recalcStreak === 'function') recalcStreak(); }, 2000);
 
+// Restore subscription state
+try {
+  if (localStorage.getItem('btm_subscribed') === '1') state.isSubscribed = true;
+} catch(e) {}
+
 // Restore height unit
 try {
   const savedHUnit = localStorage.getItem('btm_height_unit');
@@ -4710,14 +4984,21 @@ function checkTrialStatus() {
 }
 
 function subscribe() {
-  // In production this triggers the App Store / Play Store purchase flow
-  // For now simulate a successful subscription
+  // Mark as subscribed — persists across sessions
   state.isSubscribed = true;
+  try { localStorage.setItem('btm_subscribed', '1'); } catch(e) {}
+  // Save to Firebase so it persists across devices
+  if (window.firebaseDb && window.currentFirebaseUser && window.fsSetDoc && window.fsDoc) {
+    window.fsSetDoc(window.fsDoc(window.firebaseDb, 'users', window.currentFirebaseUser.uid),
+      { isSubscribed: true, subscribedAt: new Date().toISOString() }, { merge: true }
+    ).catch(e => console.error('Subscription save failed:', e));
+  }
   document.getElementById('trialBanner').style.display = 'none';
   document.querySelectorAll('.screen').forEach(s => s.style.paddingTop = '');
   document.getElementById('mainNav').style.display = 'flex';
   showScreen('screenCamera');
-  showToast('Welcome to Be The Method! 💪');
+  showToast('Subscribed! Welcome to Be The Method 💪');
+  // NOTE: In production this will trigger Apple/Google IAP before marking subscribed
 }
 
 function toggleFaceBlurDefault(btn) {
@@ -4904,9 +5185,50 @@ window.loadUserFromFirebase = async function(user) {
         console.log('Loading user data from Firestore:', data);
         // Restore profile and onboarding data
         if (data.profile) state.profile = { ...state.profile, ...data.profile };
-        if (data.obData) state.obData = { ...state.obData, ...data.obData };
+        if (data.obData) {
+          state.obData = { ...state.obData, ...data.obData };
+          // Sync weight/height units from Firebase
+          if (data.obData.weightUnit) {
+            state.weightUnit = data.obData.weightUnit;
+            try { localStorage.setItem('btm_weight_unit', data.obData.weightUnit); } catch(e) {}
+            const unitDisplay = document.getElementById('unitDisplay');
+            if (unitDisplay) unitDisplay.innerHTML = data.obData.weightUnit + ' <span class="chevron">›</span>';
+          }
+          if (data.obData.heightUnit) {
+            try { localStorage.setItem('btm_height_unit', data.obData.heightUnit); } catch(e) {}
+          }
+        }
         if (data.privacy) state.privacy = data.privacy;
         if (data.trialStartDate) state.trialStartDate = new Date(data.trialStartDate);
+        if (data.isSubscribed) {
+          state.isSubscribed = true;
+          try { localStorage.setItem('btm_subscribed', '1'); } catch(e) {}
+        }
+        if (data.darkMode) {
+          try { localStorage.setItem('btm_dark_mode', data.darkMode); } catch(e) {}
+          if (data.darkMode === '1') {
+            const app = document.getElementById('app');
+            if (app && !app.classList.contains('dark-mode-on')) {
+              app.classList.add('dark-mode-on');
+              const btn = document.getElementById('themeToggle');
+              if (btn) btn.classList.add('on');
+              app.style.setProperty('--bg','#0e0e0e');
+              app.style.setProperty('--s1','#1c1c1c');
+              app.style.setProperty('--s2','#242424');
+              app.style.setProperty('--s3','#2e2e2e');
+              app.style.setProperty('--border','rgba(255,255,255,0.1)');
+              app.style.setProperty('--border2','rgba(255,255,255,0.18)');
+              app.style.setProperty('--text','#ffffff');
+              app.style.setProperty('--muted','#999');
+              document.body.style.background = '#000';
+            }
+          } else {
+            const app = document.getElementById('app');
+            if (app) app.classList.remove('dark-mode-on');
+            const btn = document.getElementById('themeToggle');
+            if (btn) btn.classList.remove('on');
+          }
+        }
         // Update UI
         document.getElementById('onboarding').classList.add('done');
         document.getElementById('mainNav').style.display = 'flex';

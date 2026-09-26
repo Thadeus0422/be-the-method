@@ -193,8 +193,14 @@ body{font-family:var(--font);color:var(--text);overflow:hidden;}
   overflow-y:auto;overflow-x:hidden;
   padding-bottom:72px;
   display:none;
+  /* Opaque background so a mid-transition frame can never show the screen
+     underneath (this was the SOCIAL-behind-PROGRESS flash). */
+  background:var(--bg);
   animation:fadeUp .25s ease;
 }
+/* Kill the fade entirely when switching fast — replaying a 250ms opacity
+   ramp on every tap is what made the old screen visible through the new one. */
+.screen.no-anim{animation:none!important;}
 #screenCoach.active{
   display:flex!important;
   flex-direction:column;
@@ -752,8 +758,13 @@ body{font-family:var(--font);color:var(--text);overflow:hidden;}
   <!-- LOADING -->
   <div class="loading-screen" id="loadingOverlay">
     <div class="spinner"></div>
-    <div class="loading-txt" style="color:var(--text)">Analyzing physique…</div>
-    <div class="loading-sub">AI scanning muscle groups</div>
+    <div class="loading-txt" style="color:var(--text)" id="loadingTxt">Analyzing physique…</div>
+    <div class="loading-sub" id="loadingSub">Compressing photos</div>
+    <div style="width:190px;height:3px;background:rgba(128,128,128,.25);border-radius:3px;margin-top:16px;overflow:hidden;">
+      <div id="loadingBar" style="height:100%;width:4%;background:currentColor;border-radius:3px;transition:width .6s ease;"></div>
+    </div>
+    <div id="loadingElapsed" style="font-size:11px;opacity:.6;margin-top:10px;font-variant-numeric:tabular-nums;">0s</div>
+    <div style="font-size:11px;opacity:.6;margin-top:14px;text-align:center;max-width:230px;line-height:1.5;">Keep the app open — leaving now cancels the analysis.</div>
   </div>
 
   <!-- ════════════════════════════
@@ -1158,7 +1169,7 @@ body{font-family:var(--font);color:var(--text);overflow:hidden;}
       </button>
       <!-- Bulk / Cut / Maintain picker -->
       <div style="display:flex;gap:8px;">
-        <button class="mode-pick-btn active" id="modeBulk" onclick="selectMode('bulk',this)" style="flex:1;padding:12px 6px;border-radius:12px;border:none;background:#2A7A4A;color:#fff;font-family:'Syne',sans-serif;font-size:12px;font-weight:800;cursor:pointer;letter-spacing:1px;transition:all .2s;">
+        <button class="mode-pick-btn" id="modeBulk" onclick="selectMode('bulk',this)" style="flex:1;padding:12px 6px;border-radius:12px;border:none;background:var(--s3);color:var(--muted);opacity:.6;font-family:'Syne',sans-serif;font-size:12px;font-weight:800;cursor:pointer;letter-spacing:1px;transition:all .2s;">
           BULK
         </button>
         <button class="mode-pick-btn" id="modeMaintain" onclick="selectMode('maintain',this)" style="flex:1;padding:12px 6px;border-radius:12px;border:none;background:var(--s3);color:var(--muted);font-family:'Syne',sans-serif;font-size:12px;font-weight:800;cursor:pointer;letter-spacing:1px;transition:all .2s;">
@@ -1253,6 +1264,14 @@ body{font-family:var(--font);color:var(--text);overflow:hidden;}
       <div class="wd">Th</div><div class="wd">Fr</div><div class="wd">Sa</div>
     </div>
     <div class="cal-grid" id="calGrid"></div>
+    <div style="padding:18px 16px 8px;">
+      <button onclick="showMonthlyRecap()" id="recapBtn"
+        style="width:100%;padding:15px;border-radius:14px;border:none;background:var(--text);color:var(--bg);font-family:'Syne',sans-serif;font-size:13px;font-weight:800;letter-spacing:1.2px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">
+        <span>MONTHLY RECAP</span>
+        <span id="recapBtnCount" style="font-size:11px;font-weight:600;opacity:.7;letter-spacing:.5px;"></span>
+      </button>
+      <div style="text-align:center;font-size:11px;color:var(--muted);margin-top:10px;">Swipe left or right on the calendar to change month</div>
+    </div>
   </div>
 
   <!-- FRIENDS SCREEN -->
@@ -1519,8 +1538,18 @@ body{font-family:var(--font);color:var(--text);overflow:hidden;}
         <button class="toggle on" id="notifToggle" onclick="this.classList.toggle('on')"></button>
       </div>
       <div class="setting-row">
-        <div class="setting-lbl">Streak Reminders</div>
+        <div class="setting-lbl">Daily Check-in Reminder</div>
         <button class="toggle" id="streakToggle" onclick="toggleStreakReminder(this)"></button>
+      </div>
+      <div class="setting-row" id="reminderTimeRow" style="display:none;">
+        <div class="setting-lbl" style="opacity:.8;">Remind me at</div>
+        <div class="setting-val">
+          <input type="time" id="reminderTime" value="19:00" onchange="setReminderTime(this.value)"
+            style="background:var(--s2);border:.5px solid var(--border2);color:var(--text);font-family:var(--font);font-size:13px;padding:6px 10px;border-radius:10px;">
+        </div>
+      </div>
+      <div id="reminderHint" style="display:none;padding:0 16px 12px;font-size:11px;color:var(--muted);line-height:1.5;">
+        Reminders fire while the app is open or in the background. Guaranteed daily push notifications need the native app build.
       </div>
     </div>
 
@@ -2257,7 +2286,7 @@ let state = {
   currentPhotoBack: null,
   currentPhotoBackB64: null,
   photoStep: 'front',
-  currentMode: 'bulk',
+  currentMode: null,   // BUGFIX: was 'bulk' — every check-in silently logged as a bulk
   photoScope: 'full',
   currentCaption: '',
   trialStartDate: null,
@@ -3108,7 +3137,16 @@ async function runAnalysis() {
     setTimeout(() => openModal('apiKeyModal'), 400);
     return;
   }
+  if (!state.currentMode) {
+    showToast('Pick your mode (Bulk / Maintain / Cut) first');
+    const bar = document.getElementById('modeBulk');
+    if (bar) { const row = bar.parentElement; row.style.outline = '2px solid #C43030'; row.style.outlineOffset = '4px'; row.style.borderRadius = '14px'; setTimeout(() => { row.style.outline = ''; }, 1600); row.scrollIntoView({behavior:'smooth', block:'center'}); }
+    return;
+  }
   document.getElementById('loadingOverlay').classList.add('show');
+  window._btmWasBackgroundedDuringAnalysis = false;
+  window._btmAnalysisInFlight = true;
+  startAnalysisProgress();
   try {
     const scopeNote = state.photoScope === 'top'
       ? 'UPPER BODY ONLY — user chose top-only mode. Score only: Chest, Shoulders, Arms & Biceps, Back & Lats, Core & Abs. Set Legs & Quads and Glutes & Hamstrings score to 0.'
@@ -3136,6 +3174,22 @@ CORE RULES:
 - Average untrained person scores 35-50. Most gym-goers 50-65. Dedicated athletes 70+.
 - For Core/Abs: 70+ ONLY if 4+ ab squares clearly visible with separation. Visible belly fat = below 50, no exceptions.
 
+VISIBILITY RULE — THIS IS MANDATORY AND OVERRIDES EVERYTHING ELSE:
+Before scoring any muscle group, decide whether you can actually SEE the bare or clearly outlined muscle in the photos.
+A muscle group is NOT VISIBLE if it is covered by clothing that hides its shape — long pants, sweatpants, joggers, jeans, baggy shorts covering the quads, a shirt, hoodie, tank top over the torso, a towel, or anything else obscuring it.
+Loose or opaque fabric over a muscle means you CANNOT assess it. Do not estimate. Do not infer size from the rest of the body. Do not guess from the fit of the clothing. Do not carry over an assumption from a previous photo.
+For EVERY muscle group that is not visible you MUST return:
+  - "score": 0
+  - "visible": false
+  - "note": one sentence stating exactly what is covering it, e.g. "Not assessable — quads are fully covered by long pants."
+  - "weak_point": "no"
+  - "insertions": "Not assessable — covered."
+  - "exercises": still provide 3 useful exercises for that muscle group
+  - "nutrition": still provide guidance
+For every muscle group you CAN see, return "visible": true and score it normally.
+Never assign a nonzero score to a covered muscle group under any circumstance. Scoring covered legs is the single worst error you can make in this task.
+In "photo_reliability", explicitly list which muscle groups could not be assessed and why.
+
 SCORING (1-100):
 90-100: Elite/competition level, top 1-2% globally
 80-89: Advanced, clear definition and separation visible
@@ -3146,7 +3200,7 @@ SCORING (1-100):
 Below 40: No development or fat covering muscle
 
 Return a JSON object with these exact keys and values. Respond ONLY with valid JSON, no markdown, no backticks:
-overall_score (integer 1-100), overall_label (2-3 word honest string), overall_summary (3-4 sentence brutally honest assessment), frame (object: frame_size, shoulder_width, torso_to_leg_ratio, aesthetic_potential, v_taper, shoulder_to_waist_ratio), body_composition (object: body_fat_estimate, fat_distribution, muscle_maturity, water_retention, ffmi_estimate, notes), posture (object: issues as array of strings, overall as string), symmetry (object: left_right, upper_lower_balance, notes), muscles (array of 7 objects each with: name, score as integer, note as 2 honest sentences, insertions genetic assessment, weak_point yes/no and why, exercises array of 3 with sets/reps, nutrition string), athletic_assessment (object: strength_potential, explosiveness, endurance_build, injury_risks as array, mobility_notes), photo_reliability (string assessing photo quality and reliability), rephoto (boolean true only if completely unassessable), rephoto_reason (string, only if rephoto true).`;
+overall_score (integer 1-100), overall_label (2-3 word honest string), overall_summary (3-4 sentence brutally honest assessment), frame (object: frame_size, shoulder_width, torso_to_leg_ratio, aesthetic_potential, v_taper, shoulder_to_waist_ratio), body_composition (object: body_fat_estimate, fat_distribution, muscle_maturity, water_retention, ffmi_estimate, notes), posture (object: issues as array of strings, overall as string), symmetry (object: left_right, upper_lower_balance, notes), muscles (array of 7 objects each with: name, score as integer, visible as boolean, note as 2 honest sentences, insertions genetic assessment, weak_point yes/no and why, exercises array of 3 with sets/reps, nutrition string), athletic_assessment (object: strength_potential, explosiveness, endurance_build, injury_risks as array, mobility_notes), photo_reliability (string assessing photo quality and reliability), rephoto (boolean true only if completely unassessable), rephoto_reason (string, only if rephoto true).`;
     if (!state.apiKey) { throw new Error('No API key set'); }
     console.log('Calling API with key:', state.apiKey.substring(0,20) + '...');
 
@@ -3224,16 +3278,25 @@ overall_score (integer 1-100), overall_label (2-3 word honest string), overall_s
       }
     }
     document.getElementById('loadingOverlay').classList.remove('show');
+    window._btmAnalysisInFlight = false;
+    stopAnalysisProgress();
     if (result.rephoto === true) {
       showRephotoModal(result.rephoto_reason || 'One or more body parts could not be clearly seen. Please retake your photos.');
       return;
     }
     result.scope = state.photoScope;
     result.muscles = filterMusclesByScope(result.muscles);
+    // Belt-and-braces: even if the model flags a group as not visible but
+    // still returns a score, zero it out client-side.
+    (result.muscles || []).forEach(m => {
+      if (m.visible === false) { m.score = 0; m.weak_point = 'no'; }
+    });
     saveCheckin(result);
     renderResults(result);
   } catch(err) {
     document.getElementById('loadingOverlay').classList.remove('show');
+    window._btmAnalysisInFlight = false;
+    stopAnalysisProgress();
     console.error('API Error:', err);
     // Show the actual error so user knows what happened
     const errMsg = err.message || 'Unknown error';
@@ -3248,15 +3311,42 @@ overall_score (integer 1-100), overall_label (2-3 word honest string), overall_s
       document.getElementById('app').appendChild(errDiv);
       setTimeout(() => errDiv?.remove(), 8000);
     } else {
-      showToast('Using demo data — API key may be invalid');
+      showToast('Analysis failed — nothing was saved');
     }
-    const demo = demoResult();
-    demo.scope = state.photoScope;
-    demo.isDemo = true;
-    demo.muscles = filterMusclesByScope(demo.muscles);
-    saveCheckin(demo);
-    renderResults(demo);
+    // NOTE: we deliberately do NOT save demo data here anymore.
+    // Backgrounding the app (switching tabs/apps on iOS) kills the in-flight
+    // fetch, which used to silently burn the daily check-in on fake results.
+    showAnalysisRetry(errMsg);
   }
+}
+
+// Retry sheet shown when analysis fails. Photos are kept in state so the
+// user can just tap Retry — no re-shooting, no check-in consumed.
+function showAnalysisRetry(errMsg) {
+  const existing = document.getElementById('analysisRetrySheet');
+  if (existing) existing.remove();
+  const backgrounded = window._btmWasBackgroundedDuringAnalysis;
+  window._btmWasBackgroundedDuringAnalysis = false;
+  const sheet = document.createElement('div');
+  sheet.id = 'analysisRetrySheet';
+  sheet.style.cssText = 'position:absolute;inset:0;background:rgba(0,0,0,.55);z-index:500;display:flex;align-items:flex-end;';
+  sheet.innerHTML = `
+    <div style="width:100%;background:var(--bg);border-radius:22px 22px 0 0;padding:24px 20px 34px;">
+      <div style="width:38px;height:4px;border-radius:2px;background:var(--s3);margin:0 auto 18px;"></div>
+      <div style="font-family:'Syne',sans-serif;font-size:19px;font-weight:800;color:var(--text);margin-bottom:8px;">Analysis didn't finish</div>
+      <div style="font-size:13px;color:var(--muted);line-height:1.55;margin-bottom:6px;">
+        ${backgrounded
+          ? 'It looks like you left the app while the AI was working. Analysis has to run in the foreground — keep the screen on and stay in the app for the ~20-40 seconds it takes.'
+          : 'Something went wrong before the AI could score your photos.'}
+      </div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:18px;">Your photos are still here and today's check-in has <strong style="color:var(--text);">not</strong> been used.</div>
+      <button onclick="document.getElementById('analysisRetrySheet').remove(); runAnalysis();"
+        style="width:100%;padding:15px;border-radius:14px;border:none;background:var(--text);color:var(--bg);font-family:'Syne',sans-serif;font-size:14px;font-weight:800;letter-spacing:1px;cursor:pointer;margin-bottom:10px;">RETRY ANALYSIS</button>
+      <button onclick="document.getElementById('analysisRetrySheet').remove();"
+        style="width:100%;padding:13px;border-radius:14px;border:.5px solid var(--border2);background:transparent;color:var(--muted);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;">Not now</button>
+      <div style="margin-top:14px;font-size:10px;color:var(--muted);font-family:monospace;word-break:break-word;opacity:.65;">${(errMsg||'').substring(0,180)}</div>
+    </div>`;
+  document.getElementById('app').appendChild(sheet);
 }
 
 async function saveCheckin(result) {
@@ -3297,6 +3387,12 @@ async function saveCheckin(result) {
   document.getElementById('photoStepBadge').style.background = '#111';
   document.getElementById('camPlaceholder').style.display = 'flex';
   state.hideFace = false;
+  // Clear the mode so tomorrow's check-in doesn't inherit today's
+  state.currentMode = null;
+  ['modeBulk','modeMaintain','modeCut'].forEach(id => {
+    const b = document.getElementById(id);
+    if (b) { b.style.background = 'var(--s3)'; b.style.color = 'var(--muted)'; b.style.border = 'none'; b.style.opacity = '0.6'; }
+  });
   const hft = document.getElementById('hideFaceToggle');
   const hfthumb = document.getElementById('hideFaceThumb');
   const hfbtn = document.getElementById('hideFaceBtn');
@@ -3311,15 +3407,23 @@ async function saveCheckin(result) {
   if (window.firebaseDb && window.currentFirebaseUser) {
     try {
       const uid = window.currentFirebaseUser.uid;
+      // BUGFIX: we used to persist only the overall score/label and a bare
+      // {name, score} per muscle. Everything else — notes, exercises,
+      // nutrition, frame, body composition, posture, symmetry, athletic
+      // assessment — was dropped, so signing back in restored a hollow
+      // version of each check-in. Now the full result object is stored.
       const checkinData = {
         date: now.toISOString(),
+        localDate: `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`,
         overallScore: result.overall_score,
         overallLabel: result.overall_label,
         overallSummary: result.overall_summary || '',
         muscleScores: result.muscles?.map(m => ({name: m.name, score: m.score})) || [],
+        fullResult: JSON.stringify(result),
         mode: checkinMode,
         scope: checkinScope,
         caption: checkinCaption,
+        hideFace: !!checkinHideFace,
         streak: state.streak
       };
 
@@ -3525,6 +3629,7 @@ function renderResults(result) {
     ? result.muscles.filter(m => !legNames.includes(m.name))
     : result.muscles;
   scopedMuscles.forEach((m, i) => {
+    const notVisible = m.visible === false;
     const cls = m.score >= 80 ? 's-hi' : m.score >= 65 ? 's-md' : 's-lo';
     const barColor = m.score >= 80 ? '#2A7A4A' : m.score >= 65 ? '#B87020' : '#C43030';
     const exHtml = (m.exercises||[]).map(e => `<div class="tip-item">${e}</div>`).join('');
@@ -3534,7 +3639,13 @@ function renderResults(result) {
     const insertionHtml = m.insertions ? `<div style="font-size:11px;color:var(--muted);margin-bottom:4px;"><span style="font-weight:600;">Insertions:</span> ${m.insertions}</div>` : '';
     const isWeak = m.weak_point && m.weak_point.toLowerCase().startsWith('yes') && m.score < 65;
     const weakHtml = isWeak ? `<div style="font-size:11px;color:#C43030;margin-bottom:6px;">⚠ Needs focus: ${m.weak_point}</div>` : '';
-    card.innerHTML = `
+    card.innerHTML = notVisible ? `
+      <div class="muscle-top">
+        <div class="muscle-name" style="opacity:.6;">${m.name}</div>
+        <div style="font-size:10px;font-weight:700;letter-spacing:.8px;padding:4px 9px;border-radius:20px;background:var(--s3);color:var(--muted);">NOT VISIBLE</div>
+      </div>
+      <div class="bar-bg"><div class="bar-fill" style="width:100%;background:repeating-linear-gradient(45deg,var(--s3),var(--s3) 5px,transparent 5px,transparent 10px)" data-w="100%"></div></div>
+      <div class="muscle-note" style="opacity:.75;">${m.note || 'Covered in this photo — not scored.'}</div>` : `
       <div class="muscle-top">
         <div class="muscle-name">${m.name}</div>
         <div class="muscle-score ${cls}">${m.score}</div>
@@ -3605,6 +3716,56 @@ function renderCalendar() {
     const click = ci ? `onclick="openDayModal(${idx})"` : '';
     grid.innerHTML += `<div class="${cls}" ${click}>${inner}${modeDot}<div class="day-num">${d}</div></div>`;
   }
+
+  // Keep the recap button label in sync with the month being viewed
+  const recapCount = document.getElementById('recapBtnCount');
+  if (recapCount) recapCount.textContent = '· ' + monthCI + ' check-in' + (monthCI === 1 ? '' : 's');
+
+  attachCalendarSwipe();
+}
+
+// Swipe left/right anywhere on the calendar grid to move between months.
+// Bound once; re-calling renderCalendar() replaces grid children but not the
+// grid element itself, so the listeners survive.
+function attachCalendarSwipe() {
+  const grid = document.getElementById('calGrid');
+  if (!grid || grid._swipeBound) return;
+  grid._swipeBound = true;
+
+  let startX = 0, startY = 0, tracking = false, moved = false;
+
+  grid.addEventListener('touchstart', e => {
+    if (e.touches.length !== 1) return;
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+    tracking = true; moved = false;
+  }, { passive: true });
+
+  grid.addEventListener('touchmove', e => {
+    if (!tracking) return;
+    const dx = e.touches[0].clientX - startX;
+    const dy = e.touches[0].clientY - startY;
+    // Only treat it as a horizontal swipe — don't hijack vertical scrolling
+    if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+      moved = true;
+      grid.style.transform = `translateX(${Math.max(-60, Math.min(60, dx * 0.35))}px)`;
+      grid.style.opacity = String(1 - Math.min(0.35, Math.abs(dx) / 400));
+    }
+  }, { passive: true });
+
+  grid.addEventListener('touchend', e => {
+    if (!tracking) return;
+    tracking = false;
+    const dx = e.changedTouches[0].clientX - startX;
+    const dy = e.changedTouches[0].clientY - startY;
+    grid.style.transition = 'transform .18s ease, opacity .18s ease';
+    grid.style.transform = '';
+    grid.style.opacity = '';
+    setTimeout(() => { grid.style.transition = ''; }, 200);
+    if (moved && Math.abs(dx) > 55 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+      changeMonth(dx < 0 ? 1 : -1);
+    }
+  }, { passive: true });
 }
 
 // Blur state for draggable oval
@@ -3855,17 +4016,74 @@ function confirmBlurPosition() {
   }
 }
 
+// Recap for months with 0 or 1 check-ins — always shows something instead of
+// silently failing. A one-photo month still gets its photo and score.
+function showRecapEmptyState(monthName, year, count, single) {
+  const existing = document.getElementById('monthlyRecapOverlay');
+  if (existing) existing.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'monthlyRecapOverlay';
+  overlay.style.cssText = 'position:absolute;inset:0;background:var(--bg);z-index:400;overflow-y:auto;';
+
+  const singleBlock = single ? `
+    <div style="padding:0 16px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+        ${(single.photoFront || single.photoFrontUrl) ? `<img src="${single.photoFront || single.photoFrontUrl}" style="width:100%;aspect-ratio:.75;object-fit:cover;border-radius:12px;background:var(--s2);">` : `<div style="width:100%;aspect-ratio:.75;background:var(--s2);border-radius:12px;"></div>`}
+        ${(single.photo || single.photoBackUrl) ? `<img src="${single.photo || single.photoBackUrl}" style="width:100%;aspect-ratio:.75;object-fit:cover;border-radius:12px;background:var(--s2);">` : `<div style="width:100%;aspect-ratio:.75;background:var(--s2);border-radius:12px;"></div>`}
+      </div>
+      <div style="text-align:center;font-size:26px;font-family:'Syne',sans-serif;font-weight:800;color:var(--text);">${single.result?.overall_score || '—'}<span style="font-size:12px;color:var(--muted);font-weight:400;">/100</span></div>
+      <div style="text-align:center;font-size:12px;color:var(--muted);margin-top:2px;">${new Date(single.date).toLocaleDateString('en-US',{month:'short',day:'numeric'})} · your only check-in this month</div>
+    </div>` : '';
+
+  overlay.innerHTML = `
+    <div style="padding:52px 16px 16px;display:flex;align-items:center;gap:12px;">
+      <button onclick="document.getElementById('monthlyRecapOverlay').remove()" style="width:36px;height:36px;border-radius:50%;background:var(--s2);border:none;color:var(--text);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;">←</button>
+      <div>
+        <div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:var(--text);">Monthly Recap</div>
+        <div style="font-size:12px;color:var(--muted);">${monthName} ${year} · ${count} check-in${count===1?'':'s'}</div>
+      </div>
+    </div>
+    ${singleBlock}
+    <div style="padding:24px 16px 40px;">
+      <div style="background:var(--s1);border:.5px solid var(--border);border-radius:16px;padding:26px 20px;text-align:center;">
+        <div style="font-size:32px;margin-bottom:10px;">${count === 0 ? '📭' : '📸'}</div>
+        <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:800;color:var(--text);margin-bottom:8px;">
+          ${count === 0 ? 'No check-ins in ' + monthName : 'Only one check-in in ' + monthName}
+        </div>
+        <div style="font-size:13px;color:var(--muted);line-height:1.6;">
+          ${count === 0
+            ? 'There were zero photos this month, so there\'s nothing to compare and no recap video to build. Check in daily and next month\'s recap will have your full progression.'
+            : 'A recap needs at least two check-ins to show change over time. One more and you\'ll get score deltas, muscle-by-muscle progress, and a swipeable photo timeline.'}
+        </div>
+      </div>
+      <button onclick="document.getElementById('monthlyRecapOverlay').remove(); showScreen('screenCamera');"
+        style="width:100%;margin-top:16px;padding:15px;border-radius:14px;border:none;background:var(--text);color:var(--bg);font-family:'Syne',sans-serif;font-size:13px;font-weight:800;letter-spacing:1px;cursor:pointer;">CHECK IN NOW</button>
+    </div>`;
+  document.getElementById('app').appendChild(overlay);
+}
+
 function showMonthlyRecap() {
-  // Get current displayed month checkins
-  const year = calState.year;
-  const month = calState.month;
+  // BUGFIX: this used to read `calState.year` / `calState.month`, which never
+  // existed anywhere in the app — so every call threw a ReferenceError and the
+  // recap silently never opened. The calendar's real state lives on
+  // state.calYear / state.calMonth.
+  const year = state.calYear;
+  const month = state.calMonth;
   const monthCheckins = state.checkins.filter(ci => {
     const d = new Date(ci.date);
     return d.getFullYear() === year && d.getMonth() === month;
   }).sort((a, b) => new Date(a.date) - new Date(b.date));
 
-  if (monthCheckins.length < 2) {
-    showToast('Need at least 2 check-ins this month for a recap!');
+  const monthNameShort = new Date(year, month).toLocaleString('default', { month: 'long' });
+
+  // BUGFIX: previously bailed with a toast when there were 0 or 1 check-ins.
+  // Now we always open the recap and show an honest empty/partial state.
+  if (monthCheckins.length === 0) {
+    showRecapEmptyState(monthNameShort, year, 0);
+    return;
+  }
+  if (monthCheckins.length === 1) {
+    showRecapEmptyState(monthNameShort, year, 1, monthCheckins[0]);
     return;
   }
 
@@ -3878,6 +4096,9 @@ function showMonthlyRecap() {
   if (first.result?.muscles && last.result?.muscles) {
     first.result.muscles.forEach(fm => {
       const lm = last.result.muscles.find(m => m.name === fm.name);
+      // Skip groups that weren't visible in either photo — comparing a real
+      // score against a 0 placeholder would show a huge fake drop.
+      if (fm.visible === false || (lm && lm.visible === false)) return;
       if (lm) {
         const diff = lm.score - fm.score;
         muscleProgress.push({ name: fm.name, start: fm.score, end: lm.score, diff });
@@ -3894,21 +4115,25 @@ function showMonthlyRecap() {
   overlay.id = 'monthlyRecapOverlay';
   overlay.style.cssText = 'position:absolute;inset:0;background:var(--bg);z-index:400;overflow-y:auto;';
 
-  // Build photo slides HTML
-  const photoSlides = monthCheckins.map((ci, i) => {
+  // BUGFIX: this used to build one slide per check-in in the month. With a
+  // full month of daily check-ins that's 20-30 near-duplicate slides — the
+  // recap is about before/after, so we only ever show the first and last.
+  const slideCheckins = [first, last];
+  const slideLabels = ['BEFORE', 'AFTER'];
+  const photoSlides = slideCheckins.map((ci, i) => {
     const date = new Date(ci.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     const frontSrc = ci.photoFront || ci.photoFrontUrl || '';
     const backSrc = ci.photo || ci.photoBackUrl || '';
     return `
       <div style="min-width:100%;display:flex;flex-direction:column;gap:8px;padding:0 16px;box-sizing:border-box;">
-        <div style="text-align:center;font-size:11px;color:var(--muted);font-weight:600;letter-spacing:.5px;text-transform:uppercase;">${date} · Check-in ${i+1} of ${monthCheckins.length}</div>
+        <div style="text-align:center;font-size:11px;color:var(--muted);font-weight:600;letter-spacing:.5px;text-transform:uppercase;">${slideLabels[i]} · ${date}</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
           <div style="position:relative;">
-            ${frontSrc ? `<img src="${frontSrc}" style="width:100%;aspect-ratio:.75;object-fit:cover;border-radius:12px;background:var(--s2);">` : `<div style="width:100%;aspect-ratio:.75;background:var(--s2);border-radius:12px;display:flex;align-items:center;justify-content:center;"><span style="font-size:24px;">📷</span></div>`}
+            ${frontSrc ? `<img src="${frontSrc}" draggable="false" style="width:100%;aspect-ratio:.75;object-fit:cover;border-radius:12px;background:var(--s2);pointer-events:none;">` : `<div style="width:100%;aspect-ratio:.75;background:var(--s2);border-radius:12px;display:flex;align-items:center;justify-content:center;"><span style="font-size:24px;">📷</span></div>`}
             <div style="position:absolute;bottom:6px;left:6px;background:rgba(0,0,0,.6);color:#fff;font-size:9px;font-weight:700;padding:2px 8px;border-radius:8px;">FRONT</div>
           </div>
           <div style="position:relative;">
-            ${backSrc ? `<img src="${backSrc}" style="width:100%;aspect-ratio:.75;object-fit:cover;border-radius:12px;background:var(--s2);">` : `<div style="width:100%;aspect-ratio:.75;background:var(--s2);border-radius:12px;display:flex;align-items:center;justify-content:center;"><span style="font-size:24px;">📷</span></div>`}
+            ${backSrc ? `<img src="${backSrc}" draggable="false" style="width:100%;aspect-ratio:.75;object-fit:cover;border-radius:12px;background:var(--s2);pointer-events:none;">` : `<div style="width:100%;aspect-ratio:.75;background:var(--s2);border-radius:12px;display:flex;align-items:center;justify-content:center;"><span style="font-size:24px;">📷</span></div>`}
             <div style="position:absolute;bottom:6px;left:6px;background:rgba(0,0,0,.6);color:#fff;font-size:9px;font-weight:700;padding:2px 8px;border-radius:8px;">BACK</div>
           </div>
         </div>
@@ -3932,6 +4157,26 @@ function showMonthlyRecap() {
 
   const overallColor = overallDiff > 0 ? '#2A7A4A' : overallDiff < 0 ? '#C43030' : 'var(--muted)';
 
+  // Top 3 biggest gains this month
+  const topGrowth = [...muscleProgress].filter(m => m.diff > 0).sort((a, b) => b.diff - a.diff).slice(0, 3);
+  const medals = ['🥇', '🥈', '🥉'];
+  const topGrowthHtml = topGrowth.length ? `
+    <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:12px;">Most Growth This Month</div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px;">
+      ${topGrowth.map((m, i) => `
+        <div style="display:flex;align-items:center;gap:12px;padding:14px 16px;background:linear-gradient(135deg, rgba(42,122,74,${0.14 - i*0.035}), rgba(42,122,74,0.03));border:.5px solid rgba(42,122,74,.28);border-radius:14px;">
+          <div style="font-size:20px;line-height:1;">${medals[i]}</div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:14px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${m.name}</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px;">${m.start} → ${m.end}</div>
+          </div>
+          <div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:#2A7A4A;">+${m.diff}</div>
+        </div>`).join('')}
+    </div>` : `
+    <div style="padding:16px;background:var(--s1);border:.5px solid var(--border);border-radius:14px;margin-bottom:20px;text-align:center;">
+      <div style="font-size:13px;color:var(--muted);line-height:1.5;">No muscle group gained ground this month. Consistency over the next 30 days is what moves these numbers.</div>
+    </div>`;
+
   overlay.innerHTML = `
     <!-- Header -->
     <div style="padding:52px 16px 16px;display:flex;align-items:center;gap:12px;">
@@ -3944,12 +4189,15 @@ function showMonthlyRecap() {
 
     <!-- Photo slideshow -->
     <div style="position:relative;overflow:hidden;margin-bottom:20px;">
-      <div id="recapSlider" style="display:flex;transition:transform .3s ease;gap:0;" ontouchstart="recapTouchStart(event)" ontouchend="recapTouchEnd(event)">
+      <div id="recapSlider" style="display:flex;transition:transform .3s ease;gap:0;">
         ${photoSlides}
       </div>
+      <!-- Arrows (desktop / mouse) -->
+      <button id="recapPrevBtn" onclick="recapGo(-1)" style="position:absolute;left:4px;top:40%;transform:translateY(-50%);width:30px;height:30px;border-radius:50%;border:none;background:rgba(0,0,0,.45);color:#fff;font-size:14px;cursor:pointer;display:none;align-items:center;justify-content:center;">‹</button>
+      <button id="recapNextBtn" onclick="recapGo(1)" style="position:absolute;right:4px;top:40%;transform:translateY(-50%);width:30px;height:30px;border-radius:50%;border:none;background:rgba(0,0,0,.45);color:#fff;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;">›</button>
       <!-- Dots -->
       <div style="display:flex;justify-content:center;gap:6px;margin-top:12px;">
-        ${monthCheckins.map((_, i) => `<div class="recap-dot" id="recapDot${i}" style="width:6px;height:6px;border-radius:50%;background:${i===0?'var(--text)':'var(--s3)'};transition:background .2s;"></div>`).join('')}
+        ${slideCheckins.map((_, i) => `<div class="recap-dot" id="recapDot${i}" style="width:6px;height:6px;border-radius:50%;background:${i===0?'var(--text)':'var(--s3)'};transition:background .2s;"></div>`).join('')}
       </div>
     </div>
 
@@ -3969,7 +4217,11 @@ function showMonthlyRecap() {
         </div>
       </div>
 
+      <!-- Top 3 growth -->
+      ${topGrowthHtml}
+
       <!-- Muscle breakdown -->
+      <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:12px;">Full Breakdown</div>
       <div style="background:var(--s1);border-radius:14px;border:.5px solid var(--border);padding:4px 16px;">
         ${progressRows || '<div style="padding:16px 0;text-align:center;color:var(--muted);font-size:13px;">No muscle data available</div>'}
       </div>
@@ -3977,22 +4229,50 @@ function showMonthlyRecap() {
 
   document.getElementById('app').appendChild(overlay);
 
-  // Swipe for slideshow
+  // Slideshow navigation — touch swipe (phone), mouse drag (desktop/preview),
+  // and arrow buttons (always work, regardless of input type).
   let recapIndex = 0;
-  let recapStartX = 0;
-  window.recapTouchStart = (e) => { recapStartX = e.touches[0].clientX; };
-  window.recapTouchEnd = (e) => {
-    const dx = e.changedTouches[0].clientX - recapStartX;
-    if (Math.abs(dx) > 50) {
-      if (dx < 0 && recapIndex < monthCheckins.length - 1) recapIndex++;
-      else if (dx > 0 && recapIndex > 0) recapIndex--;
-      document.getElementById('recapSlider').style.transform = `translateX(-${recapIndex * 100}%)`;
-      monthCheckins.forEach((_, i) => {
-        const dot = document.getElementById('recapDot' + i);
-        if (dot) dot.style.background = i === recapIndex ? 'var(--text)' : 'var(--s3)';
-      });
+  const recapSlider = document.getElementById('recapSlider');
+  const goToRecapSlide = (i) => {
+    recapIndex = Math.max(0, Math.min(slideCheckins.length - 1, i));
+    recapSlider.style.transform = `translateX(-${recapIndex * 100}%)`;
+    slideCheckins.forEach((_, idx) => {
+      const dot = document.getElementById('recapDot' + idx);
+      if (dot) dot.style.background = idx === recapIndex ? 'var(--text)' : 'var(--s3)';
+    });
+    const prevBtn = document.getElementById('recapPrevBtn');
+    const nextBtn = document.getElementById('recapNextBtn');
+    if (prevBtn) prevBtn.style.display = recapIndex > 0 ? 'flex' : 'none';
+    if (nextBtn) nextBtn.style.display = recapIndex < slideCheckins.length - 1 ? 'flex' : 'none';
+  };
+  window.recapGo = (dir) => goToRecapSlide(recapIndex + dir);
+
+  let dragStartX = 0, dragging = false, draggedPx = 0;
+  const startDrag = (x) => { dragStartX = x; dragging = true; draggedPx = 0; recapSlider.style.transition = 'none'; };
+  const moveDrag = (x) => {
+    if (!dragging) return;
+    draggedPx = x - dragStartX;
+    recapSlider.style.transform = `translateX(calc(-${recapIndex * 100}% + ${draggedPx}px))`;
+  };
+  const endDrag = () => {
+    if (!dragging) return;
+    dragging = false;
+    recapSlider.style.transition = 'transform .3s ease';
+    if (Math.abs(draggedPx) > 50) {
+      goToRecapSlide(recapIndex + (draggedPx < 0 ? 1 : -1));
+    } else {
+      goToRecapSlide(recapIndex);
     }
   };
+
+  recapSlider.addEventListener('touchstart', e => startDrag(e.touches[0].clientX), { passive: true });
+  recapSlider.addEventListener('touchmove', e => moveDrag(e.touches[0].clientX), { passive: true });
+  recapSlider.addEventListener('touchend', e => endDrag());
+  recapSlider.addEventListener('mousedown', e => { e.preventDefault(); startDrag(e.clientX); });
+  window.addEventListener('mousemove', e => moveDrag(e.clientX));
+  window.addEventListener('mouseup', e => endDrag());
+
+  goToRecapSlide(0);
 }
 
 function openFullscreenPhoto(src, title) {
@@ -4192,11 +4472,17 @@ function openDayModal(idx) {
       ? c.result.muscles.filter(m => m.name !== 'Legs & Quads' && m.name !== 'Glutes & Hamstrings')
       : c.result.muscles;
     scopedMuscles.forEach(m => {
+      const notVisible = m.visible === false;
       const cls = m.score >= 80 ? 's-hi' : m.score >= 65 ? 's-md' : 's-lo';
       const barColor = m.score >= 80 ? '#2A7A4A' : m.score >= 65 ? '#B87020' : '#C43030';
       const div = document.createElement('div');
       div.style.cssText = 'padding:10px 12px;background:var(--s2);border-radius:12px;margin-bottom:8px;';
-      div.innerHTML = `
+      div.innerHTML = notVisible ? `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <div style="font-size:13px;font-weight:600;color:var(--text);opacity:.6;">${m.name}</div>
+          <div style="font-size:9px;font-weight:700;letter-spacing:.6px;padding:3px 7px;border-radius:20px;background:var(--s3);color:var(--muted);">NOT VISIBLE</div>
+        </div>
+        <div style="font-size:11px;color:var(--muted);line-height:1.5;">${m.note || 'Covered in this photo — not scored.'}</div>` : `
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
           <div style="font-size:13px;font-weight:600;color:var(--text);">${m.name}</div>
           <div class="muscle-score ${cls}" style="font-size:11px;">${m.score}</div>
@@ -4729,10 +5015,29 @@ function closeModal(id) { document.getElementById(id).classList.remove('show'); 
 function closeModalBg(e, id) { if (e.target === document.getElementById(id)) closeModal(id); }
 
 // ── NAVIGATION ──
+let _lastScreenSwitch = 0;
 function showScreen(id) {
-  document.querySelectorAll('.screen').forEach(s => { s.classList.remove('active'); s.style.display = ''; });
   const scr = document.getElementById(id);
+  if (!scr) return;
+
+  // Hide every other screen explicitly. Relying on removing .active alone left
+  // a frame where the outgoing screen was still composited underneath.
+  document.querySelectorAll('.screen').forEach(s => {
+    if (s === scr) return;
+    s.classList.remove('active');
+    s.style.display = 'none';
+  });
+
+  // Rapid taps: skip the fade so screens swap instantly instead of
+  // cross-dissolving through each other.
+  const now = Date.now();
+  const fast = (now - _lastScreenSwitch) < 400;
+  _lastScreenSwitch = now;
+  scr.classList.toggle('no-anim', fast);
+
+  scr.style.display = '';
   scr.classList.add('active');
+  scr.scrollTop = 0;
   if (id === 'screenCoach') { scr.style.display = 'flex'; scr.style.flexDirection = 'column'; }
   document.querySelectorAll('.nav-btn').forEach(b => {
     b.classList.remove('active');
@@ -4761,6 +5066,51 @@ function showScreen(id) {
     if (el) el.textContent = motMsgs[Math.floor(Math.random() * motMsgs.length)];
   }
 }
+
+// ── ANALYSIS PROGRESS ──
+// The request genuinely takes 20-40s (two images + a long JSON response).
+// We can't make the model faster from the client, but an honest progress
+// readout stops it feeling like the app has frozen.
+let _analysisTimer = null;
+function startAnalysisProgress() {
+  stopAnalysisProgress();
+  const started = Date.now();
+  const stages = [
+    [0,  'Compressing photos',        8],
+    [3,  'Uploading to the model',    18],
+    [7,  'Reading front photo',       34],
+    [13, 'Reading back photo',        50],
+    [20, 'Scoring muscle groups',     68],
+    [30, 'Writing your breakdown',    84],
+    [45, 'Almost there — hang tight', 93],
+  ];
+  const tick = () => {
+    const secs = Math.floor((Date.now() - started) / 1000);
+    let stage = stages[0];
+    for (const st of stages) { if (secs >= st[0]) stage = st; }
+    const sub = document.getElementById('loadingSub');
+    const bar = document.getElementById('loadingBar');
+    const el  = document.getElementById('loadingElapsed');
+    if (sub) sub.textContent = stage[1];
+    if (bar) bar.style.width = stage[2] + '%';
+    if (el)  el.textContent = secs + 's';
+  };
+  tick();
+  _analysisTimer = setInterval(tick, 1000);
+}
+function stopAnalysisProgress() {
+  if (_analysisTimer) { clearInterval(_analysisTimer); _analysisTimer = null; }
+  const bar = document.getElementById('loadingBar');
+  if (bar) bar.style.width = '4%';
+}
+
+// If the app is backgrounded mid-analysis, remember it so the retry sheet can
+// explain what actually happened instead of showing a raw network error.
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && window._btmAnalysisInFlight) {
+    window._btmWasBackgroundedDuringAnalysis = true;
+  }
+});
 
 // ── TOAST ──
 function showToast(msg) {
@@ -4962,6 +5312,8 @@ renderCompeteDays();
 // Dev reset removed — using real data
 // Recalculate streak on every load to catch missed days
 setTimeout(() => { if (typeof recalcStreak === 'function') recalcStreak(); }, 2000);
+// Restore the daily-reminder toggle, its time, and restart the timer
+setTimeout(() => { if (typeof initReminderSettings === 'function') initReminderSettings(); }, 800);
 
 // Restore subscription state
 try {
@@ -5149,24 +5501,128 @@ function toggleStreakReminder(btn) {
   btn.classList.toggle('on');
   const isOn = btn.classList.contains('on');
   try { localStorage.setItem('btm_streak_reminder', isOn ? '1' : '0'); } catch(e) {}
-  if (isOn) {
-    if ('Notification' in window && Notification.permission !== 'granted') {
-      Notification.requestPermission().then(p => {
-        if (p === 'granted') {
-          showToast('Streak reminders on! Test notification sent');
-          // Send a test notification
-          new Notification('Be The Method 🔥', { body: 'Streak reminders are working! You\'ll get a daily nudge.' });
-        } else {
-          showToast('Enable notifications in browser settings');
-          btn.classList.remove('on');
-        }
-      });
-    } else if (Notification.permission === 'granted') {
-      showToast('Streak reminders on! Test sent');
-      new Notification('Be The Method 🔥', { body: 'Streak reminders are working!' });
-    }
+  setReminderRowVisible(isOn);
+
+  if (!isOn) {
+    stopReminderTimer();
+    showToast('Daily reminder off');
+    return;
+  }
+
+  const enable = () => {
+    startReminderTimer();
+    const t = getReminderTime();
+    showToast('Daily reminder set for ' + formatReminderTime(t));
+  };
+
+  if (!('Notification' in window)) {
+    // No notification support (e.g. older iOS Safari) — fall back to an
+    // in-app nudge next time the app is opened after the reminder time.
+    enable();
+    showToast('Reminder saved — this browser shows it in-app only');
+    return;
+  }
+  if (Notification.permission === 'granted') {
+    enable();
+  } else if (Notification.permission === 'denied') {
+    btn.classList.remove('on');
+    setReminderRowVisible(false);
+    try { localStorage.setItem('btm_streak_reminder', '0'); } catch(e) {}
+    showToast('Notifications are blocked in your device settings');
   } else {
-    showToast('Streak reminders off');
+    Notification.requestPermission().then(pm => {
+      if (pm === 'granted') { enable(); }
+      else {
+        btn.classList.remove('on');
+        setReminderRowVisible(false);
+        try { localStorage.setItem('btm_streak_reminder', '0'); } catch(e) {}
+        showToast('Enable notifications to get reminders');
+      }
+    });
+  }
+}
+
+function setReminderRowVisible(on) {
+  const row = document.getElementById('reminderTimeRow');
+  const hint = document.getElementById('reminderHint');
+  if (row) row.style.display = on ? 'flex' : 'none';
+  if (hint) hint.style.display = on ? 'block' : 'none';
+}
+
+function getReminderTime() {
+  try { return localStorage.getItem('btm_reminder_time') || '19:00'; } catch(e) { return '19:00'; }
+}
+
+function formatReminderTime(t) {
+  const [h, m] = t.split(':').map(Number);
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const hr = h % 12 === 0 ? 12 : h % 12;
+  return `${hr}:${String(m).padStart(2,'0')} ${ampm}`;
+}
+
+function setReminderTime(val) {
+  try { localStorage.setItem('btm_reminder_time', val); } catch(e) {}
+  startReminderTimer();
+  showToast('Reminder set for ' + formatReminderTime(val));
+}
+
+let _reminderTimer = null;
+function stopReminderTimer() {
+  if (_reminderTimer) { clearInterval(_reminderTimer); _reminderTimer = null; }
+}
+
+// Checks once a minute whether it's past the reminder time and the user
+// hasn't checked in yet today. Fires at most once per day.
+function startReminderTimer() {
+  stopReminderTimer();
+  const check = () => {
+    let on = '0';
+    try { on = localStorage.getItem('btm_streak_reminder') || '0'; } catch(e) {}
+    if (on !== '1') return;
+
+    const now = new Date();
+    const todayKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+    let lastFired = '';
+    try { lastFired = localStorage.getItem('btm_reminder_fired') || ''; } catch(e) {}
+    if (lastFired === todayKey) return;
+
+    const [h, m] = getReminderTime().split(':').map(Number);
+    if (now.getHours() < h || (now.getHours() === h && now.getMinutes() < m)) return;
+
+    // Already checked in today? Nothing to nudge about.
+    if (typeof isLockedToday === 'function' && isLockedToday()) {
+      try { localStorage.setItem('btm_reminder_fired', todayKey); } catch(e) {}
+      return;
+    }
+
+    try { localStorage.setItem('btm_reminder_fired', todayKey); } catch(e) {}
+    const body = state.streak > 0
+      ? `Don't break your ${state.streak}-day streak — take today's photos.`
+      : "Take today's photos and start your streak.";
+    if ('Notification' in window && Notification.permission === 'granted') {
+      try { new Notification('Be The Method 🔥', { body }); } catch(e) { showToast(body); }
+    } else {
+      showToast(body);
+    }
+  };
+  check();
+  _reminderTimer = setInterval(check, 60000);
+}
+
+// Restore reminder settings on load
+function initReminderSettings() {
+  let on = '0';
+  try { on = localStorage.getItem('btm_streak_reminder') || '0'; } catch(e) {}
+  const btn = document.getElementById('streakToggle');
+  const timeInput = document.getElementById('reminderTime');
+  if (timeInput) timeInput.value = getReminderTime();
+  if (on === '1') {
+    if (btn) btn.classList.add('on');
+    setReminderRowVisible(true);
+    startReminderTimer();
+  } else {
+    if (btn) btn.classList.remove('on');
+    setReminderRowVisible(false);
   }
 }
 
@@ -5348,22 +5804,51 @@ window.loadUserFromFirebase = async function(user) {
           const checkinsSnap = await getDocs(
             query(collection(window.firebaseDb, 'users', user.uid, 'checkins'), orderBy('date', 'asc'))
           );
+          // Local-date key so dedup can't misfire across timezones. The old
+          // code compared a UTC ISO string against a local Date, so an evening
+          // check-in could look like a different day and get dropped or dupe'd.
+          const dayKey = dt => {
+            const x = new Date(dt);
+            return `${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,'0')}-${String(x.getDate()).padStart(2,'0')}`;
+          };
+          const seen = new Set(state.checkins.map(c => dayKey(c.date)));
+
           checkinsSnap.forEach(doc => {
             const d = doc.data();
-            const existing = state.checkins.find(c => c.date?.toISOString?.()?.startsWith(d.date?.split('T')[0]));
-            if (!existing) {
-              state.checkins.push({
-                date: new Date(d.date),
-                photo: d.photoBackUrl || '',
-                photoFront: d.photoFrontUrl || '',
-                result: { overall_score: d.overallScore, overall_label: d.overallLabel, overall_summary: d.overallSummary || '', muscles: d.muscleScores?.map(m => ({...m, note:'', exercises:[], nutrition:''})) || [] },
-                mode: d.mode || 'bulk',
-                scope: d.scope || 'full',
-                caption: d.caption || '',
-                hideFace: false
-              });
+            const key = d.localDate || dayKey(d.date);
+            if (seen.has(key)) return;
+            seen.add(key);
+
+            // Prefer the full stored result; fall back to the old thin shape
+            // for check-ins saved before this fix.
+            let restored = null;
+            if (d.fullResult) {
+              try { restored = JSON.parse(d.fullResult); } catch(e) { console.warn('Could not parse stored result for', key, e); }
             }
+            if (!restored) {
+              restored = {
+                overall_score: d.overallScore,
+                overall_label: d.overallLabel,
+                overall_summary: d.overallSummary || '',
+                muscles: d.muscleScores?.map(m => ({...m, note:'', exercises:[], nutrition:''})) || [],
+                _partial: true
+              };
+            }
+
+            state.checkins.push({
+              date: new Date(d.date),
+              photo: d.photoBackUrl || '',
+              photoFront: d.photoFrontUrl || '',
+              result: restored,
+              mode: d.mode || 'bulk',
+              scope: d.scope || 'full',
+              caption: d.caption || '',
+              hideFace: !!d.hideFace
+            });
           });
+
+          // Keep chronological order regardless of what order docs came back in
+          state.checkins.sort((a, b) => new Date(a.date) - new Date(b.date));
           if (state.checkins.length > 0) {
             state.lastCheckinDate = state.checkins[state.checkins.length-1].date;
             // Properly recalculate streak accounting for missed days
